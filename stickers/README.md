@@ -4,9 +4,11 @@
 |---|---|---|
 | 第1弾 `keigo` | 敬語しろねこ 40個 | 審査待ち（申請済み） |
 | 第2弾 `kisetsu` | 敬語しろねこ 季節のごあいさつ 40個（手がぷっくり丸い新デザイン） | 申請準備中 |
+| 第3弾 `deka` | しろねこのデカ文字 40個（40〜60代向け・普段使い） | 申請準備中 |
 
 ![第1弾](output/keigo/preview.png)
 ![第2弾](output/kisetsu/preview.png)
+![第3弾](output/deka/preview.png)
 
 > `output/keigo/` は申請した時点の画像をそのまま残している。今の generate.py で作り直すと、腕が第2弾と同じ丸い手になる。
 
@@ -48,6 +50,7 @@ pip install cairosvg pillow
 # フォント（fonts/MPLUSRounded1c-ExtraBold.ttf, SIL OFL）をOSにインストールしておく
 python stickers/generate.py keigo     # 第1弾
 python stickers/generate.py kisetsu   # 第2弾
+python stickers/generate.py deka      # 第3弾（LAYOUT="deka" で文字を大きく配置）
 ```
 - セリフ・表情・ポーズを変えたいときは `sets/<セット名>.py` を編集する。新しいセットも同じ形でファイルを足せば作れる
 - 絵はすべてコード（SVG）で描いている。ただし描画プログラムとデザインはAI（Claude）が作ったので、LINEの申請では「AIを使用しています」を選ぶ
@@ -59,7 +62,13 @@ python stickers/generate.py kisetsu   # 第2弾
 - **説明文（日本語）**：リボンのしろねこが、季節のごあいさつを丁寧な敬語で。ハロウィン・クリスマス・お正月から春夏まで、一年中使える40種類です。
 - **説明文（英語）**：A chubby white cat with a red ribbon sends polite seasonal greetings in Japanese, from Halloween and New Year to spring and summer. 40 stickers for all year.
 
+## 第3弾 販売ページ用の文案
+- **タイトル（日本語）**：しろねこのデカ文字【毎日使える】
+- **タイトル（英語）**：Big Text White Cat: Everyday Words
+- **説明文（日本語）**：大きな文字で読みやすい！リボンのしろねこが、家族や友だちとの毎日のやりとりにぴったりな40種類。了解・ありがとう・今から帰るなど。
+- **説明文（英語）**：Big, easy-to-read words with a chubby white cat. 40 everyday stickers for family and friends: OK, thank you, on my way home and more.
+- メイン画像は「了解！」のスタンプ（デカ文字だと一目で分かるように）
+
 ## 次の展開案（シリーズ化すると売上が伸びる）
-- デカ文字版（40〜60代向けの人気ジャンル）
 - 動くスタンプ版（単価が上がる）
 - ナース・医療職版（職場ネタ、競合が少ない）

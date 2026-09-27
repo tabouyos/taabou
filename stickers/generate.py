@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 import cairosvg
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, ImageOps
 
 ROOT = Path(__file__).parent
 W, H = 370, 320
@@ -298,6 +298,10 @@ def item(kind):
                     f'<path d="M 0 36 L 0 84" stroke="{LINE}" stroke-width="4"/>'
                     + "".join(f'<path d="M {x0} {y} L {x1} {y - 2}" stroke="#c9b27a" stroke-width="3" stroke-linecap="round"/>'
                               for x0, x1 in ((-36, -8), (8, 36)) for y in (48, 58, 68)))
+    if kind == "phone":
+        return "", (f'<rect x="-24" y="18" width="48" height="76" rx="9" fill="#37474f" {ST}/>'
+                    '<rect x="-17" y="28" width="34" height="52" rx="3" fill="#b3e5fc"/>'
+                    '<path d="M -10 44 L 10 44 M -10 54 L 4 54" stroke="#fff" stroke-width="4" stroke-linecap="round"/>')
     if kind == "kagami":
         return "", (f'<rect x="-40" y="72" width="80" height="14" rx="3" fill="#e0a45c" {ST}/>'
                     f'<ellipse cx="0" cy="62" rx="40" ry="16" fill="#fff" {ST}/>'
@@ -528,6 +532,63 @@ def sticker_image(s):
     return canvas
 
 
+def text_width(line):
+    """おおよその文字幅（全角=1, 半角=0.62）"""
+    return sum(0.62 if ord(c) < 0x2000 else 1.0 for c in line)
+
+
+def deka_image(s):
+    """デカ文字版: 文字をいっぱいに大きく描き、猫は文字と重ならない下の隅に置く"""
+    import numpy as np
+    k = 2
+    color = s.get("color", "#ff6f61")
+    side = s.get("cat_side", "right")
+    lines = s["text"].split("\n")
+
+    # 文字は上側を横いっぱいに使う（行数が多いほど縦も広く）
+    box_w, box_h = W - 44, H * (0.72 if len(lines) == 1 else 0.80)  # 太いフチの分だけ内側に
+    size = min(box_w / max(text_width(l) for l in lines), box_h / (len(lines) * 1.06), 150)
+    lh = size * 1.06
+    top = 18 if len(lines) > 1 else max(18, (H * 0.56 - lh) / 2)
+    out = ""
+    for i, l in enumerate(lines):
+        y = top + i * lh + size * 0.86
+        attrs = (f'x="{W / 2}" y="{y:.1f}" text-anchor="middle" font-family="{FONT}" '
+                 f'font-weight="800" font-size="{size:.1f}"')
+        out += (f'<text {attrs} fill="{LINE}" stroke="{LINE}" stroke-width="{size * 0.26:.1f}" stroke-linejoin="round">{l}</text>'
+                f'<text {attrs} fill="#fff" stroke="#fff" stroke-width="{size * 0.13:.1f}" stroke-linejoin="round">{l}</text>'
+                f'<text {attrs} fill="{color}">{l}</text>')
+    text_im = render(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">{out}</svg>',
+                     W * k, H * k)
+    text_a = np.asarray(text_im.getchannel("A")) > 40
+
+    # 猫: 大きい順に試し、文字とほとんど重ならない位置が見つかったらそこに置く
+    cat_full = cat_image(s, k)
+    sides = [side, "left" if side == "right" else "right"]
+    best = None
+    for frac in (0.46, 0.42, 0.38):  # 猫の大きさはほぼ揃える（文字の後ろに少し隠れるのは可）
+        sc = min(H * frac * k / cat_full.height, W * 0.5 * k / cat_full.width)
+        cat = cat_full.resize((round(cat_full.width * sc), round(cat_full.height * sc)), Image.LANCZOS)
+        cat_a = np.asarray(cat.getchannel("A")) > 40
+        for sd in sides:
+            x = W * k - cat.width - 4 if sd == "right" else 4
+            y = H * k - cat.height - 4
+            region = text_a[y:y + cat.height, x:x + cat.width]
+            ratio = (region & cat_a).sum() / cat_a.sum()
+            if best is None or ratio < best[0] - 1e-9:
+                best = (ratio, cat, x, y)
+            if ratio < 0.12:
+                break
+        if best[0] < 0.12:
+            break
+
+    _, cat, x, y = best
+    canvas = Image.new("RGBA", (W * k, H * k), (0, 0, 0, 0))
+    canvas.alpha_composite(cat, (x, y))
+    canvas.alpha_composite(text_im)
+    return canvas
+
+
 def render(svg, w, h):
     png = cairosvg.svg2png(bytestring=svg.encode("utf-8"), output_width=w, output_height=h)
     return Image.open(io.BytesIO(png)).convert("RGBA")
@@ -535,6 +596,7 @@ def render(svg, w, h):
 
 def add_white_border(im, px=6):
     """スタンプらしい白フチを付ける（どの背景色でも見やすくする）"""
+    im = ImageOps.expand(im, border=px * 2, fill=(0, 0, 0, 0))  # フチが端で切れないように余白を足す
     alpha = im.getchannel("A")
     grown = alpha.point(lambda a: 255 if a > 20 else 0).filter(ImageFilter.MaxFilter(px * 2 + 1))
     grown = grown.filter(ImageFilter.GaussianBlur(0.8))
@@ -564,7 +626,7 @@ def main(set_name):
     tiles = []
     for i, s in enumerate(stickers, 1):
         # 2倍で描いて縮小するとフチがなめらかになる
-        im = sticker_image(s)
+        im = deka_image(s) if getattr(mod, "LAYOUT", "") == "deka" else sticker_image(s)
         im = fit_with_margin(add_white_border(im, 12), W, H)
         im.save(out / f"{i:02d}.png", optimize=True)
         tiles.append(im)
@@ -574,7 +636,9 @@ def main(set_name):
     cat = (f'<svg xmlns="http://www.w3.org/2000/svg" width="700" height="700" viewBox="-175 -210 350 350">'
            f'{cat_svg(main_pose)}</svg>')
     big = add_white_border(render(cat, 700, 700), 14)
-    fit_with_margin(big, 240, 240).save(out / "main.png", optimize=True)
+    # MAIN_STICKER を指定したセットは、そのスタンプ（文字入り）をメイン画像にする
+    main_src = tiles[mod.MAIN_STICKER - 1] if hasattr(mod, "MAIN_STICKER") else big
+    fit_with_margin(main_src, 240, 240).save(out / "main.png", optimize=True)
     fit_with_margin(big, 96, 74, margin=2).save(out / "tab.png", optimize=True)
 
     # プレビュー（LINE風の背景に並べる）
