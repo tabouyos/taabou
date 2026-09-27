@@ -1,6 +1,14 @@
-# 敬語しろねこ LINEスタンプ（40個）
+# しろねこ LINEスタンプ
 
-![preview](output/preview.png)
+| セット | 内容 | 状態 |
+|---|---|---|
+| 第1弾 `keigo` | 敬語しろねこ 40個 | 審査待ち（申請済み） |
+| 第2弾 `kisetsu` | 敬語しろねこ 季節のごあいさつ 40個（手がぷっくり丸い新デザイン） | 申請準備中 |
+
+![第1弾](output/keigo/preview.png)
+![第2弾](output/kisetsu/preview.png)
+
+> `output/keigo/` は申請した時点の画像をそのまま残している。今の generate.py で作り直すと、腕が第2弾と同じ丸い手になる。
 
 ## キャラクター
 - **白くてぽっちゃりしたねこ**に、**赤いリボン**と**片耳のトラ模様**の2つの目印を付けた
@@ -21,7 +29,7 @@
   2. 敬語でやさしく♪しろねこスタンプ
   3. 大人のための丁寧しろねこ
 - **説明文**：リボンがチャームポイントのしろねこが、ていねいな敬語であいさつ。職場でも目上の方にも使いやすい、毎日使える40種類です。
-- **価格**：120円（最も売れやすい標準価格）
+- **価格**：¥190（日本での最低価格）
 
 ## LINE Creators Market への申請手順
 1. https://creator.line.me/ja/ に登録する（無料・個人でも可）
@@ -38,14 +46,20 @@
 ```bash
 pip install cairosvg pillow
 # フォント（fonts/MPLUSRounded1c-ExtraBold.ttf, SIL OFL）をOSにインストールしておく
-python stickers/generate.py
+python stickers/generate.py keigo     # 第1弾
+python stickers/generate.py kisetsu   # 第2弾
 ```
-- セリフ・表情・ポーズを変えたいときは `phrases.py` を編集する
-- 絵はすべてコード（SVG）で描いているので、**著作権は作成者に帰属**する。AI画像のように権利関係を心配する必要はない
+- セリフ・表情・ポーズを変えたいときは `sets/<セット名>.py` を編集する。新しいセットも同じ形でファイルを足せば作れる
+- 絵はすべてコード（SVG）で描いている。ただし描画プログラムとデザインはAI（Claude）が作ったので、LINEの申請では「AIを使用しています」を選ぶ
 - フォントのM PLUS Rounded 1cはSIL Open Font Licenseのため、商用スタンプに利用できる
 
+## 第2弾 販売ページ用の文案
+- **タイトル（日本語）**：ていねい敬語しろねこ 季節のごあいさつ
+- **タイトル（英語）**：Polite White Cat: Seasonal Greetings
+- **説明文（日本語）**：リボンのしろねこが、季節のごあいさつを丁寧な敬語で。ハロウィン・クリスマス・お正月から春夏まで、一年中使える40種類です。
+- **説明文（英語）**：A chubby white cat with a red ribbon sends polite seasonal greetings in Japanese, from Halloween and New Year to spring and summer. 40 stickers for all year.
+
 ## 次の展開案（シリーズ化すると売上が伸びる）
-- 第2弾：季節のあいさつ（年末年始・暑中見舞い・誕生日）
 - デカ文字版（40〜60代向けの人気ジャンル）
 - 動くスタンプ版（単価が上がる）
 - ナース・医療職版（職場ネタ、競合が少ない）
