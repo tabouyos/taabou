@@ -107,8 +107,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .lineid { font-family: ui-monospace, monospace; font-size: 1.05rem; user-select: all; background: var(--bg); padding: 4px 8px; border-radius: 6px; overflow-wrap: anywhere; }
 
 /* settings */
-.menu-row { display: grid; grid-template-columns: 1fr 80px 96px auto; gap: 6px; align-items: center; }
-@media (max-width: 460px) { .menu-row { grid-template-columns: 1fr 70px 80px auto; } .bk { grid-template-columns: 54px 1fr auto; } }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { position: relative; }
+.chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.chip span { display: inline-block; border: 1px solid var(--line-c); background: var(--bg); color: var(--fg); border-radius: 999px; padding: 8px 16px; cursor: pointer; font-size: .95rem; }
+.chip input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+.chip input:disabled + span { opacity: .45; cursor: not-allowed; }
+.chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cell .ng { font-size: .7rem; color: var(--danger); font-weight: 700; }
+.blk { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 8px 12px; border: 1px dashed var(--danger); border-radius: 10px; }
+.blk .when { font-variant-numeric: tabular-nums; font-weight: 700; }
+@media (max-width: 460px) { .bk { grid-template-columns: 54px 1fr auto; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
@@ -137,7 +146,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
       </div>
       <div class="row">
         <label class="f">日付<input type="date" id="bDate" required></label>
-        <label class="f">メニュー<select id="bMenu"></select></label>
+      </div>
+      <div class="f" style="display:grid;gap:6px">
+        <span class="muted" id="bItemsLabel">メニュー（2つまで選べます）</span>
+        <div class="chips" id="bItems" role="group" aria-labelledby="bItemsLabel"></div>
       </div>
       <p class="muted" id="bDayInfo"></p>
       <div class="row">
@@ -171,6 +183,23 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
       <p class="muted">日付をタップすると 未入力 → 日勤 → 夜勤 → 明け → 休み → 遅番 の順に切り替わります。数字は予約件数です。</p>
     </div>
 
+    <form class="panel" id="blockForm" autocomplete="off">
+      <h2>予約を入れない日時</h2>
+      <p class="muted">用事がある日や、早めに終わりたい日を登録します。お客様向けの空き枠からも消えます。</p>
+      <div class="row">
+        <label class="f">日付<input type="date" id="kDate" required></label>
+        <label class="f"><span><input type="checkbox" id="kAllDay" checked style="width:auto;vertical-align:middle"> 終日</span>
+          <span class="muted" style="font-size:.75rem">外すと時間を指定できます</span></label>
+      </div>
+      <div class="row" id="kTimes" hidden>
+        <label class="f">この時刻から<input type="time" id="kFrom" value="18:00"></label>
+        <label class="f">この時刻まで<input type="time" id="kTo" value="21:00"></label>
+      </div>
+      <label class="f">メモ（自分用・お客様には見えません）<input id="kMemo" placeholder="例: 歯医者"></label>
+      <div class="row"><button class="btn" type="submit">NGにする</button></div>
+      <div id="blockList" class="wrap" style="gap:8px"></div>
+    </form>
+
     <div class="panel">
       <h2>チャットの勤務表を貼り付け</h2>
       <p class="muted">職場チャットの勤務連絡をそのまま貼り付けてください。「10/1 日勤」「1日 夜勤」「3(土) 休み」「5 明」のような書き方を読み取ります。月の指定がない行は、上のカレンダーで表示中の月として扱います。</p>
@@ -187,7 +216,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
     <div class="panel">
       <h2>ご予約可能な日時</h2>
       <div class="today-card" id="todayCard"></div>
-      <label class="f">メニュー<select id="pMenu"></select></label>
       <div id="pubList"></div>
       <div class="row" id="pubCopyRow"><button class="btn ghost" id="copyPub" type="button">案内文をコピー</button><span class="muted">LINEやSNSにそのまま貼れる文章です</span></div>
       <textarea id="pubText" readonly hidden></textarea>
@@ -213,15 +241,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
         <label class="f"><span><span class="badge b-late">遅番</span> の日は</span><input type="time" id="st-late"></label>
       </div>
       <div class="row">
+        <label class="f">1件の時間（分）<input type="number" id="sDuration" min="15" step="15"></label>
         <label class="f">最終終了時刻<input type="time" id="sClose"></label>
         <label class="f">予約の刻み（分）<select id="sStep"><option>15</option><option>30</option><option>60</option></select></label>
         <label class="f">施術後の片付け（分）<input type="number" id="sBuffer" min="0" step="5"></label>
       </div>
 
       <h2>メニュー</h2>
-      <div class="menu-row muted" style="font-size:.75rem"><span>名前</span><span>時間(分)</span><span>料金(円)</span><span></span></div>
-      <div id="menuRows" class="wrap" style="gap:6px"></div>
-      <div class="row"><button class="btn ghost small" type="button" id="addMenu">＋ メニューを追加</button></div>
+      <div class="row">
+        <label class="f" style="flex-basis:260px">メニュー名（「、」で区切る）<input id="sItems" placeholder="エステ、美容点滴、整体"></label>
+        <label class="f">1回に選べる数<select id="sMaxPick"><option>1</option><option>2</option><option>3</option></select></label>
+      </div>
 
       <div class="row"><button class="btn" type="submit">設定を保存</button><span class="muted" id="storeInfo"></span></div>
     </form>
@@ -244,19 +274,26 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   };
   const CYCLE = ["", "day", "night", "ake", "off", "late"];
   const DEFAULT_SETTINGS = {
-    lineId: "", lineUrl: "", close: "21:00", step: 30, buffer: 15,
-    starts: { day: "18:00", off: "10:00", ake: "", night: "", late: "" },
-    menus: [
-      { id: "m1", name: "フェイシャル", min: 60, price: 6000 },
-      { id: "m2", name: "ボディトリートメント", min: 90, price: 9000 },
-      { id: "m3", name: "ヘッドスパ", min: 45, price: 4500 },
-    ],
+    v: 2, lineId: "rx445h", lineUrl: "", close: "21:00", step: 30, buffer: 15, duration: 90,
+    starts: { day: "18:00", off: "08:00", ake: "", night: "", late: "" },
+    items: ["エステ", "美容点滴", "整体"], maxPick: 2,
   };
+  // Settings saved by the first version had per-menu prices/times and 休み from 10:00.
+  function normalizeSettings(s) {
+    const out = { ...structuredClone(DEFAULT_SETTINGS), ...structuredClone(s || {}) };
+    out.starts = { ...DEFAULT_SETTINGS.starts, ...(out.starts || {}) };
+    if (!s?.v) { out.starts.off = "08:00"; out.duration = 90; out.v = 2; if (!out.lineId) out.lineId = DEFAULT_SETTINGS.lineId; }
+    if (!Array.isArray(out.items) || !out.items.length) out.items = [...DEFAULT_SETTINGS.items];
+    delete out.menus;
+    return out;
+  }
+  const dur = () => Number(state.settings.duration) || 90;
 
   const state = {
     settings: structuredClone(DEFAULT_SETTINGS),
     shifts: {},      // "YYYY-MM" -> { days: { "DD": code }, sample?: bool }
-    bookings: [],    // {id, date, start, menuId, menuName, min, name, contact, via, note}
+    bookings: [],    // {id, date, start, items[], min, name, contact, via, note}
+    blocks: [],      // {id, date, allDay, from, to, memo}  予約を入れない日時
     busy: {},        // public busy map from db (for viewers who can't read bookings)
     month: null,     // Date of 1st of month shown
     readOnly: false,
@@ -276,7 +313,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   const toast = (msg) => { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 2200); };
 
   const shiftOf = (date) => { const [y, m, d] = date.split("-"); return state.shifts[`${y}-${m}`]?.days?.[d] || ""; };
-  const menuById = (id) => state.settings.menus.find((m) => m.id === id);
+  const itemsText = (b) => (Array.isArray(b.items) && b.items.length ? b.items.join("＋") : b.menuName || "");
+  const blockIv = (k) => (k.allDay ? [0, 24 * 60] : [toMin(k.from), toMin(k.to)]);
 
   function dayWindow(date) {
     const code = shiftOf(date);
@@ -290,6 +328,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
     const list = state.bookings.filter((b) => b.date === date && b.id !== excludeId)
       .map((b) => [toMin(b.start), toMin(b.start) + Number(b.min) + buf]);
     for (const iv of state.busy[date] || []) list.push(iv);
+    for (const k of state.blocks) if (k.date === date) list.push(blockIv(k));
     return list;
   }
   function freeStarts(date, min, { excludeId, fromNow } = {}) {
@@ -339,11 +378,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   const store = {
     db: null,
     loadLocal() {
-      try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); Object.assign(state, { settings: { ...DEFAULT_SETTINGS, ...d.settings }, shifts: d.shifts || {}, bookings: d.bookings || [] }); } } catch {}
+      try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); Object.assign(state, { settings: normalizeSettings(d.settings), shifts: d.shifts || {}, bookings: d.bookings || [], blocks: d.blocks || [] }); } } catch {}
     },
     saveLocal() {
       if (this.db) return;
-      try { localStorage.setItem(LS_KEY, JSON.stringify({ settings: state.settings, shifts: state.shifts, bookings: state.bookings })); } catch {}
+      try { localStorage.setItem(LS_KEY, JSON.stringify({ settings: state.settings, shifts: state.shifts, bookings: state.bookings, blocks: state.blocks })); } catch {}
     },
     async saveSettings() {
       if (this.db) await this.db.doc("settings/main").set(structuredClone(state.settings)); else this.saveLocal();
@@ -357,6 +396,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
     async deleteBooking(id) {
       if (this.db) { await this.db.doc(`bookings/${id}`).delete(); await this.publishBusy(); } else this.saveLocal();
     },
+    async saveBlock(k) {
+      if (this.db) { await this.db.doc(`blocks/${k.id}`).set(k); await this.publishBusy(); } else this.saveLocal();
+    },
+    async deleteBlock(id) {
+      if (this.db) { await this.db.doc(`blocks/${id}`).delete(); await this.publishBusy(); } else this.saveLocal();
+    },
     // Free/busy only (no names) so the customer view works for people who cannot read bookings.
     async publishBusy() {
       const today = todayStr(), buf = Number(state.settings.buffer) || 0, map = {};
@@ -364,6 +409,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
         if (b.date < today) continue;
         (map[b.date] ||= []).push([toMin(b.start), toMin(b.start) + Number(b.min) + buf]);
       }
+      for (const k of state.blocks) if (k.date >= today) (map[k.date] ||= []).push(blockIv(k));
       await this.db.doc("public/busy").set({ days: map });
     },
   };
@@ -380,9 +426,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
       if (user && !(await user.canEdit())) setReadOnly();
     } catch {}
     const onErr = () => {};
-    db.doc("settings/main").onSnapshot((s) => { if (s.exists) { state.settings = { ...DEFAULT_SETTINGS, ...structuredClone(s.data()) }; } renderAll(); }, onErr);
+    db.doc("settings/main").onSnapshot((s) => { if (s.exists) { state.settings = normalizeSettings(s.data()); } renderAll(); }, onErr);
     db.collection("shifts").onSnapshot((q) => { const next = {}; q.docs.forEach((d) => (next[d.id] = d.data())); state.shifts = next; renderAll(); }, onErr);
     db.collection("bookings").onSnapshot((q) => { state.bookings = q.docs.map((d) => d.data()); renderAll(); }, onErr);
+    db.collection("blocks").onSnapshot((q) => { state.blocks = q.docs.map((d) => d.data()); renderAll(); }, onErr);
     db.doc("public/busy").onSnapshot((s) => { state.busy = s.exists ? (s.data().days || {}) : {}; renderAll(); }, onErr);
   }
 
@@ -402,28 +449,37 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   $("tabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-tab]"); if (b) showTab(b.dataset.tab); });
 
   // ---------- render: booking ----------
-  function renderMenuSelects() {
-    for (const id of ["bMenu", "pMenu"]) {
-      const sel = $(id), cur = sel.value;
-      sel.innerHTML = state.settings.menus.map((m) => `<option value="${esc(m.id)}">${esc(m.name)}（${m.min}分・${Number(m.price).toLocaleString()}円）</option>`).join("");
-      if (state.settings.menus.some((m) => m.id === cur)) sel.value = cur;
-    }
+  function renderItems() {
+    const box = $("bItems"), picked = new Set([...box.querySelectorAll("input:checked")].map((i) => i.value));
+    const max = Number(state.settings.maxPick) || 2;
+    $("bItemsLabel").textContent = `メニュー（${max}つまで選べます・1件${dur()}分）`;
+    box.innerHTML = state.settings.items.map((name, i) =>
+      `<label class="chip"><input type="checkbox" id="bItem${i}" value="${esc(name)}" ${picked.has(name) ? "checked" : ""}><span>${esc(name)}</span></label>`).join("");
+    limitItems();
   }
+  function limitItems() {
+    const boxes = [...$("bItems").querySelectorAll("input")], max = Number(state.settings.maxPick) || 2;
+    const n = boxes.filter((b) => b.checked).length;
+    boxes.forEach((b) => (b.disabled = !b.checked && n >= max));
+  }
+  $("bItems").addEventListener("change", limitItems);
   function renderTimeOptions() {
-    const date = $("bDate").value, menu = menuById($("bMenu").value), sel = $("bTime"), cur = sel.value;
+    const date = $("bDate").value, sel = $("bTime"), cur = sel.value, min = dur();
     const info = $("bDayInfo");
-    if (!date || !menu) { sel.innerHTML = ""; info.textContent = ""; return; }
+    if (!date) { sel.innerHTML = ""; info.textContent = ""; return; }
     const code = shiftOf(date), w = dayWindow(date);
     const shiftTxt = code ? SHIFT[code].label : "シフト未入力";
     const isToday = date === todayStr();
+    const ng = state.blocks.filter((k) => k.date === date).map((k) => (k.allDay ? "終日" : `${k.from}〜${k.to}`));
+    const ngTxt = ng.length ? `（NG：${ng.join("・")}）` : "";
     let times;
     if ($("bOverride").checked) {
-      times = []; for (let t = 9 * 60; t + menu.min <= 23 * 60; t += Number(state.settings.step) || 30) times.push(t);
-      info.textContent = `${md(date)}：${shiftTxt}。時間外登録モードです。`;
+      times = []; for (let t = 7 * 60; t + min <= 23 * 60; t += Number(state.settings.step) || 30) times.push(t);
+      info.textContent = `${md(date)}：${shiftTxt}${ngTxt}。時間外登録モードです。`;
     } else {
-      times = freeStarts(date, Number(menu.min));
+      times = freeStarts(date, min);
       info.textContent = w
-        ? `${md(date)}：${shiftTxt}のため ${toHm(w[0])}〜${toHm(w[1])} 受付。空き ${times.length} 枠${isToday ? "（当日分は個人LINEで受けた予約を登録してください）" : ""}`
+        ? `${md(date)}：${shiftTxt}のため ${toHm(w[0])}〜${toHm(w[1])} 受付${ngTxt}。空き ${times.length} 枠${isToday ? "（当日分は個人LINEで受けた予約を登録してください）" : ""}`
         : `${md(date)}：${shiftTxt}のため受付なし。登録するときは「勤務外・時間外でも登録する」にチェックを入れてください。`;
     }
     sel.innerHTML = times.length ? times.map((t) => `<option>${toHm(t)}</option>`).join("") : `<option value="">空きがありません</option>`;
@@ -444,7 +500,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
         ${items.map((b) => {
           const end = toHm(toMin(b.start) + Number(b.min));
           return `<div class="bk"><div class="t">${esc(b.start)}<div class="muted" style="font-weight:400">〜${end}</div></div>
-            <div class="who"><strong>${esc(b.name)}</strong> 様 <span class="muted">${esc(b.menuName)}・${esc(b.via || "")}</span>
+            <div class="who"><strong>${esc(b.name)}</strong> 様 <span class="muted">${esc(itemsText(b))}・${esc(b.via || "")}</span>
             ${b.contact ? `<div class="muted">${esc(b.contact)}</div>` : ""}${b.note ? `<div class="muted">📝 ${esc(b.note)}</div>` : ""}</div>
             <button class="btn danger small" type="button" data-del="${esc(b.id)}">取消</button></div>`;
         }).join("")}</div>`;
@@ -459,17 +515,18 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
     renderAll();
     try { await store.deleteBooking(id); toast("予約を取り消しました"); } catch { toast("取消を保存できませんでした。通信を確認してもう一度お試しください"); }
   });
-  ["bDate", "bMenu", "bOverride"].forEach((id) => $(id).addEventListener("change", renderTimeOptions));
+  ["bDate", "bOverride"].forEach((id) => $(id).addEventListener("change", renderTimeOptions));
   $("bookForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const menu = menuById($("bMenu").value), start = $("bTime").value, date = $("bDate").value;
-    if (!menu || !start || !date) { toast("日付・メニュー・開始時間を選んでください"); return; }
-    const b = { id: uid(), date, start, menuId: menu.id, menuName: menu.name, min: Number(menu.min),
+    const items = [...$("bItems").querySelectorAll("input:checked")].map((i) => i.value), start = $("bTime").value, date = $("bDate").value;
+    if (!items.length || !start || !date) { toast("日付・メニュー・開始時間を選んでください"); return; }
+    const b = { id: uid(), date, start, items, min: dur(),
       name: $("bName").value.trim(), contact: $("bContact").value.trim(), via: $("bVia").value, note: $("bNote").value.trim(), createdAt: new Date().toISOString() };
     state.bookings = [...state.bookings, b];
     renderAll();
     try { await store.saveBooking(b); toast(`${md(date)} ${start} ${b.name}様を登録しました`); } catch { toast("保存できませんでした。通信を確認してもう一度お試しください"); }
     $("bName").value = ""; $("bContact").value = ""; $("bNote").value = ""; $("bOverride").checked = false;
+    $("bItems").querySelectorAll("input").forEach((i) => (i.checked = false)); limitItems();
     renderTimeOptions();
   });
 
@@ -484,8 +541,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
     for (let d = 1; d <= days; d++) {
       const date = `${key}-${pad(d)}`, code = state.shifts[key]?.days?.[pad(d)] || "";
       const n = state.bookings.filter((b) => b.date === date).length;
+      const ng = state.blocks.filter((k) => k.date === date);
+      const ngTxt = ng.length ? `<span class="ng">${ng.some((k) => k.allDay) ? "終日NG" : "一部NG"}</span>` : "";
       html += `<button type="button" class="cell${date === today ? " today" : ""}" data-date="${date}" ${state.readOnly ? "disabled" : ""}>
-        <span class="d">${d}</span><span class="badge b-${code || "none"}">${code ? SHIFT[code].short : "—"}</span>${n ? `<span class="cnt">予約${n}</span>` : ""}</button>`;
+        <span class="d">${d}</span><span class="badge b-${code || "none"}">${code ? SHIFT[code].short : "—"}</span>${ngTxt}${n ? `<span class="cnt">予約${n}</span>` : ""}</button>`;
     }
     $("cal").innerHTML = html;
     const st = state.settings.starts;
@@ -526,6 +585,37 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
     $("parseResult").textContent = `${found.length}日分を反映しました（` + Object.entries(counts).map(([k, n]) => `${SHIFT[k].label}${n}`).join("・") + "）";
   });
 
+  // ---------- 予約を入れない日時 ----------
+  $("kAllDay").addEventListener("change", () => ($("kTimes").hidden = $("kAllDay").checked));
+  function renderBlocks() {
+    const today = todayStr();
+    const list = state.blocks.filter((k) => k.date >= today).sort((a, b) => (a.date + (a.from || "")).localeCompare(b.date + (b.from || "")));
+    $("blockList").innerHTML = list.length ? list.map((k) => `<div class="blk"><div><span class="when">${md(k.date)} ${k.allDay ? "終日" : `${esc(k.from)}〜${esc(k.to)}`}</span>
+      ${k.memo ? `<span class="muted"> ${esc(k.memo)}</span>` : ""}</div><button class="btn danger small" type="button" data-unblock="${esc(k.id)}">解除</button></div>`).join("")
+      : `<p class="muted">登録されているNG日時はありません。</p>`;
+  }
+  $("blockForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const allDay = $("kAllDay").checked, from = $("kFrom").value, to = $("kTo").value, date = $("kDate").value;
+    if (!date) { toast("日付を選んでください"); return; }
+    if (!allDay && (!from || !to || toMin(to) <= toMin(from))) { toast("終わりの時刻は始まりより後にしてください"); return; }
+    const k = { id: uid(), date, allDay, from: allDay ? "" : from, to: allDay ? "" : to, memo: $("kMemo").value.trim() };
+    const clash = state.bookings.filter((b) => b.date === date && (allDay || (toMin(b.start) < toMin(to) && toMin(b.start) + Number(b.min) > toMin(from))));
+    state.blocks = [...state.blocks, k];
+    renderAll();
+    try { await store.saveBlock(k); toast(`${md(date)} ${allDay ? "終日" : `${from}〜${to}`} をNGにしました` + (clash.length ? `（この時間に予約が${clash.length}件あります）` : "")); }
+    catch { toast("保存できませんでした。通信を確認してもう一度お試しください"); }
+    $("kMemo").value = "";
+  });
+  $("blockList").addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-unblock]");
+    if (!btn) return;
+    const id = btn.dataset.unblock;
+    state.blocks = state.blocks.filter((k) => k.id !== id);
+    renderAll();
+    try { await store.deleteBlock(id); toast("NGを解除しました"); } catch { toast("解除を保存できませんでした"); }
+  });
+
   // ---------- render: public view ----------
   function lineBlock() {
     const s = state.settings;
@@ -534,29 +624,26 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
     return `<h3>本日（${md(todayStr())}）のご予約は個人LINEで</h3>
       <p class="muted">当日のご予約・空き確認は、LINEで直接メッセージをお送りください。</p><div>LINE ID：${id}</div>${link}`;
   }
-  function publicDays(menu) {
+  function publicDays() {
     const out = [], base = new Date();
     for (let i = 1; i <= 14; i++) {
       const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i), date = ymd(d);
-      out.push({ date, w: dayWindow(date), times: freeStarts(date, Number(menu.min)) });
+      out.push({ date, w: dayWindow(date), times: freeStarts(date, dur()) });
     }
     return out;
   }
   function renderPublic() {
     $("todayCard").innerHTML = lineBlock();
-    const menu = menuById($("pMenu").value) || state.settings.menus[0];
-    if (!menu) { $("pubList").innerHTML = `<p class="empty">メニューが登録されていません。</p>`; return; }
-    const days = publicDays(menu);
-    $("pubList").innerHTML = `<p class="muted">翌日から2週間分・${esc(menu.name)}（${menu.min}分）で表示しています。</p>` + days.map(({ date, w, times }) => {
-      const body = !w ? `<span class="muted">受付していません</span>` : times.length ? `<div class="slots">${times.map((t) => `<span class="slot">${toHm(t)}</span>`).join("")}</div>` : `<span class="muted">満席です</span>`;
+    const days = publicDays();
+    $("pubList").innerHTML = `<p class="muted">翌日から2週間分・1回${dur()}分の開始時刻です。メニュー：${esc(state.settings.items.join("・"))}から${Number(state.settings.maxPick) || 2}つまでお選びいただけます。</p>` + days.map(({ date, w, times }) => {
+      const body = !w ? `<span class="muted">受付していません</span>` : times.length ? `<div class="slots">${times.map((t) => `<span class="slot">${toHm(t)}</span>`).join("")}</div>` : `<span class="muted">空きがありません</span>`;
       return `<div class="pub-day"><div class="day-head">${md(date)}${w ? ` <span class="muted" style="font-weight:400">${toHm(w[0])}〜${toHm(w[1])}</span>` : ""}</div>${body}</div>`;
     }).join("");
   }
   function publicText() {
-    const menu = menuById($("pMenu").value) || state.settings.menus[0];
-    const lines = [`【エステ ご予約可能日時】${menu ? `${menu.name}（${menu.min}分）` : ""}`];
-    for (const { date, w, times } of publicDays(menu)) if (w && times.length) lines.push(`${md(date)} ${times.map(toHm).join(" / ")}`);
-    if (lines.length === 1) lines.push("現在ご案内できる空きはありません");
+    const lines = [`【ご予約可能日時】1回${dur()}分`, `メニュー：${state.settings.items.join("・")}から${Number(state.settings.maxPick) || 2}つまで`, ""];
+    for (const { date, w, times } of publicDays()) if (w && times.length) lines.push(`${md(date)} ${times.map(toHm).join(" / ")}`);
+    if (lines.length === 3) lines.push("現在ご案内できる空きはありません");
     lines.push("", "※当日のご予約は個人LINEへお願いします" + (state.settings.lineId ? `（ID：${state.settings.lineId}）` : ""));
     return lines.join("\n");
   }
@@ -564,7 +651,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
     try { await navigator.clipboard.writeText(text); toast("コピーしました"); }
     catch { if (fallbackEl) { fallbackEl.hidden = false; fallbackEl.value = text; fallbackEl.select(); } toast("自動コピーできませんでした。表示された文章を選択してコピーしてください"); }
   }
-  $("pMenu").addEventListener("change", renderPublic);
   $("copyPub").addEventListener("click", () => copyText(publicText(), $("pubText")));
   $("todayCard").addEventListener("click", (e) => {
     if (e.target.id !== "copyLine") return;
@@ -579,35 +665,28 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
     if (document.activeElement?.closest?.("#setForm")) return; // don't clobber while typing
     $("sLineId").value = s.lineId || ""; $("sLineUrl").value = s.lineUrl || "";
     for (const k of Object.keys(SHIFT)) $("st-" + k).value = s.starts?.[k] || "";
-    $("sClose").value = s.close; $("sStep").value = String(s.step); $("sBuffer").value = s.buffer;
-    $("menuRows").innerHTML = s.menus.map((m) => menuRow(m)).join("");
+    $("sClose").value = s.close; $("sStep").value = String(s.step); $("sBuffer").value = s.buffer; $("sDuration").value = s.duration;
+    $("sItems").value = s.items.join("、"); $("sMaxPick").value = String(s.maxPick);
   }
-  const menuRow = (m) => `<div class="menu-row" data-id="${esc(m.id)}">
-      <input aria-label="メニュー名" class="mName" value="${esc(m.name)}">
-      <input aria-label="時間(分)" class="mMin" type="number" min="15" step="15" value="${Number(m.min)}">
-      <input aria-label="料金(円)" class="mPrice" type="number" min="0" step="500" value="${Number(m.price)}">
-      <button class="btn danger small" type="button" data-rm>削除</button></div>`;
-  $("addMenu").onclick = () => $("menuRows").insertAdjacentHTML("beforeend", menuRow({ id: "m" + uid(), name: "", min: 60, price: 0 }));
-  $("menuRows").addEventListener("click", (e) => { if (e.target.matches("[data-rm]")) e.target.closest(".menu-row").remove(); });
   $("setForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const menus = [...document.querySelectorAll("#menuRows .menu-row")].map((r) => ({
-      id: r.dataset.id, name: r.querySelector(".mName").value.trim(), min: Number(r.querySelector(".mMin").value) || 60, price: Number(r.querySelector(".mPrice").value) || 0,
-    })).filter((m) => m.name);
-    if (!menus.length) { toast("メニューを1つ以上入れてください"); return; }
+    const items = $("sItems").value.split(/[、,，\n]/).map((x) => x.trim()).filter(Boolean);
+    if (!items.length) { toast("メニューを1つ以上入れてください"); return; }
     const starts = {}; for (const k of Object.keys(SHIFT)) starts[k] = $("st-" + k).value;
-    state.settings = { lineId: $("sLineId").value.trim(), lineUrl: $("sLineUrl").value.trim(), close: $("sClose").value || "21:00",
-      step: Number($("sStep").value) || 30, buffer: Math.max(0, Number($("sBuffer").value) || 0), starts, menus };
+    state.settings = { v: 2, lineId: $("sLineId").value.trim(), lineUrl: $("sLineUrl").value.trim(), close: $("sClose").value || "21:00",
+      step: Number($("sStep").value) || 30, buffer: Math.max(0, Number($("sBuffer").value) || 0), duration: Math.max(15, Number($("sDuration").value) || 90),
+      starts, items, maxPick: Number($("sMaxPick").value) || 2 };
     document.activeElement?.blur?.();
     renderAll();
     try { await store.saveSettings(); toast("設定を保存しました"); } catch { toast("設定を保存できませんでした"); }
   });
 
   function renderAll() {
-    renderMenuSelects();
+    renderItems();
     renderTimeOptions();
     renderBookings();
     renderCalendar();
+    renderBlocks();
     renderPublic();
     renderSettings();
   }
@@ -618,6 +697,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   state.month = new Date(now.getFullYear(), now.getMonth(), 1);
   const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   $("bDate").value = ymd(tomorrow);
+  $("kDate").value = ymd(tomorrow);
   $("storeInfo").textContent = "データはこのブラウザに保存されます";
   store.loadLocal();
   try { const t = localStorage.getItem(LS_KEY + ":tab"); if (t && $("tab-" + t)) showTab(t); } catch {}
