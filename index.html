@@ -1,0 +1,628 @@
+<title>エステ予約帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<style>
+/* Layout: one narrow column (phone first), sticky tab bar, shift calendar as a 7-col grid. */
+:root {
+  --bg: #f4f6f4;
+  --surface: #ffffff;
+  --fg: #1d2724;
+  --muted: #5f6d68;
+  --line-c: #d9e0dc;
+  --accent: #2f6f5e;
+  --accent-soft: #e2eee9;
+  --on-accent: #ffffff;
+  --line-green: #06a64b;
+  --warn: #9a5b12;
+  --warn-soft: #fbefdc;
+  --danger: #b3261e;
+  --s-day: #b7791f;   --s-day-bg: #fcf1dc;
+  --s-night: #4c51bf; --s-night-bg: #e6e7fb;
+  --s-ake: #5a6b7b;   --s-ake-bg: #e7ecf1;
+  --s-off: #2f6f5e;   --s-off-bg: #dcefe7;
+  --s-late: #8a4f9e;  --s-late-bg: #f1e5f5;
+  --f-display: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif;
+  --f-body: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #131917; --surface: #1b2320; --fg: #e5ece9; --muted: #9aa9a3; --line-c: #2e3a36;
+  --accent: #6cc2a8; --accent-soft: #1f3530; --on-accent: #0d1a16; --line-green: #3ddc84;
+  --warn: #f0b566; --warn-soft: #3a2d18; --danger: #ff8a80;
+  --s-day: #f0c46a; --s-day-bg: #3a3019; --s-night: #a3a8ff; --s-night-bg: #25274a;
+  --s-ake: #a9b8c6; --s-ake-bg: #28313a; --s-off: #6cc2a8; --s-off-bg: #1c3a31;
+  --s-late: #d8a6e8; --s-late-bg: #372540; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #131917; --surface: #1b2320; --fg: #e5ece9; --muted: #9aa9a3; --line-c: #2e3a36;
+  --accent: #6cc2a8; --accent-soft: #1f3530; --on-accent: #0d1a16; --line-green: #3ddc84;
+  --warn: #f0b566; --warn-soft: #3a2d18; --danger: #ff8a80;
+  --s-day: #f0c46a; --s-day-bg: #3a3019; --s-night: #a3a8ff; --s-night-bg: #25274a;
+  --s-ake: #a9b8c6; --s-ake-bg: #28313a; --s-off: #6cc2a8; --s-off-bg: #1c3a31;
+  --s-late: #d8a6e8; --s-late-bg: #372540; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.6; padding-inline: 16px; padding-block: 0 48px; }
+.wrap { max-width: 720px; margin: 0 auto; display: grid; gap: 20px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 700; text-wrap: balance; margin: 0; }
+h1 { font-size: 1.5rem; letter-spacing: .02em; }
+h2 { font-size: 1.15rem; }
+h3 { font-size: 1rem; }
+p { margin: 0; }
+.muted { color: var(--muted); font-size: .85rem; }
+header.top { padding-top: 20px; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+nav.tabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); display: flex; gap: 6px; padding-block: 8px; overflow-x: auto; }
+nav.tabs button { flex: 1 0 auto; border: 1px solid var(--line-c); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 8px 14px; font: inherit; font-size: .9rem; cursor: pointer; white-space: nowrap; }
+nav.tabs button[aria-selected="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.panel { background: var(--surface); border: 1px solid var(--line-c); border-radius: 14px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.row > * { min-width: 0; }
+label.f { display: grid; gap: 4px; font-size: .8rem; color: var(--muted); flex: 1 1 140px; }
+input, select, textarea { font: inherit; font-size: 16px; color: var(--fg); background: var(--bg); border: 1px solid var(--line-c); border-radius: 8px; padding: 8px 10px; width: 100%; }
+textarea { min-height: 120px; resize: vertical; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn { font: inherit; font-size: .9rem; border-radius: 8px; padding: 9px 16px; cursor: pointer; border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); font-weight: 500; }
+.btn.ghost { background: transparent; color: var(--accent); }
+.btn.small { padding: 5px 10px; font-size: .8rem; }
+.btn.danger { border-color: var(--danger); color: var(--danger); background: transparent; }
+.btn.danger.armed { background: var(--danger); color: var(--surface); }
+.btn.line { background: var(--line-green); border-color: var(--line-green); color: #fff; }
+.note { background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 10px 12px; font-size: .85rem; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-size: .85rem; z-index: 20; }
+
+.badge { display: inline-block; border-radius: 6px; padding: 0 6px; font-size: .75rem; font-weight: 700; line-height: 1.6; }
+.b-day { color: var(--s-day); background: var(--s-day-bg); }
+.b-night { color: var(--s-night); background: var(--s-night-bg); }
+.b-ake { color: var(--s-ake); background: var(--s-ake-bg); }
+.b-off { color: var(--s-off); background: var(--s-off-bg); }
+.b-late { color: var(--s-late); background: var(--s-late-bg); }
+.b-none { color: var(--muted); background: var(--bg); }
+
+/* booking list */
+.day-group { display: grid; gap: 8px; }
+.day-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-weight: 700; }
+.bk { display: grid; grid-template-columns: 64px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line-c); border-radius: 10px; }
+.bk .t { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.05rem; }
+.bk .who { min-width: 0; overflow-wrap: anywhere; }
+.empty { color: var(--muted); text-align: center; padding: 20px 8px; font-size: .9rem; }
+
+/* calendar */
+.cal-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal .dow { text-align: center; font-size: .75rem; color: var(--muted); }
+.cal .dow.sun { color: var(--danger); }
+.cell { border: 1px solid var(--line-c); background: var(--bg); border-radius: 8px; padding: 4px; min-height: 58px; display: grid; align-content: start; gap: 2px; cursor: pointer; font: inherit; color: var(--fg); text-align: left; }
+.cell .d { font-size: .8rem; font-variant-numeric: tabular-nums; }
+.cell.today { border-color: var(--accent); border-width: 2px; }
+.cell .cnt { font-size: .7rem; color: var(--muted); }
+.cell.blank { visibility: hidden; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: .8rem; color: var(--muted); align-items: center; }
+
+/* public */
+.slots { display: flex; flex-wrap: wrap; gap: 6px; }
+.slot { font-variant-numeric: tabular-nums; border: 1px solid var(--accent); color: var(--accent); border-radius: 999px; padding: 2px 10px; font-size: .85rem; }
+.pub-day { display: grid; gap: 6px; padding-block: 10px; border-top: 1px solid var(--line-c); }
+.pub-day:first-of-type { border-top: 0; }
+.today-card { border: 2px solid var(--line-green); border-radius: 12px; padding: 14px; display: grid; gap: 8px; }
+.lineid { font-family: ui-monospace, monospace; font-size: 1.05rem; user-select: all; background: var(--bg); padding: 4px 8px; border-radius: 6px; overflow-wrap: anywhere; }
+
+/* settings */
+.menu-row { display: grid; grid-template-columns: 1fr 80px 96px auto; gap: 6px; align-items: center; }
+@media (max-width: 460px) { .menu-row { grid-template-columns: 1fr 70px 80px auto; } .bk { grid-template-columns: 54px 1fr auto; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>エステ予約帳</h1>
+    <p class="muted" id="todayLabel"></p>
+  </header>
+
+  <nav class="tabs" role="tablist" id="tabs">
+    <button role="tab" data-tab="book" aria-selected="true">予約</button>
+    <button role="tab" data-tab="shift" aria-selected="false">勤務シフト</button>
+    <button role="tab" data-tab="public" aria-selected="false">お客様向け空き</button>
+    <button role="tab" data-tab="settings" aria-selected="false">設定</button>
+  </nav>
+
+  <p class="note" id="sampleNote" hidden>いま表示されているシフトはサンプルです。「勤務シフト」タブでチャットの勤務表を貼り付けると上書きされます。</p>
+
+  <!-- 予約 -->
+  <section id="tab-book" class="wrap" style="padding:0">
+    <form class="panel" id="bookForm" autocomplete="off">
+      <h2>予約を登録</h2>
+      <div class="row">
+        <label class="f">お客様名<input id="bName" required placeholder="山田 花子"></label>
+        <label class="f">連絡先（LINE名・電話など）<input id="bContact" placeholder="LINE: はなこ"></label>
+      </div>
+      <div class="row">
+        <label class="f">日付<input type="date" id="bDate" required></label>
+        <label class="f">メニュー<select id="bMenu"></select></label>
+      </div>
+      <p class="muted" id="bDayInfo"></p>
+      <div class="row">
+        <label class="f">開始時間<select id="bTime"></select></label>
+        <label class="f">受付経路<select id="bVia"><option>個人LINE</option><option>電話</option><option>対面</option><option>その他</option></select></label>
+      </div>
+      <label class="f" style="flex-basis:100%"><span><input type="checkbox" id="bOverride" style="width:auto;vertical-align:middle"> 勤務外・時間外でも登録する</span></label>
+      <label class="f">メモ（肌の状態・アレルギーなど）<textarea id="bNote" style="min-height:60px"></textarea></label>
+      <div class="row"><button class="btn" type="submit">登録する</button></div>
+    </form>
+
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <h2>これからの予約</h2>
+        <span class="muted" id="bCount"></span>
+      </div>
+      <div id="bookList" class="wrap" style="gap:16px"></div>
+    </div>
+  </section>
+
+  <!-- シフト -->
+  <section id="tab-shift" class="wrap" style="padding:0" hidden>
+    <div class="panel">
+      <div class="cal-nav">
+        <button class="btn ghost small" id="prevM" type="button" aria-label="前の月">‹ 前月</button>
+        <h2 id="monthLabel"></h2>
+        <button class="btn ghost small" id="nextM" type="button" aria-label="次の月">次月 ›</button>
+      </div>
+      <div class="cal" id="cal"></div>
+      <div class="legend" id="legend"></div>
+      <p class="muted">日付をタップすると 未入力 → 日勤 → 夜勤 → 明け → 休み → 遅番 の順に切り替わります。数字は予約件数です。</p>
+    </div>
+
+    <div class="panel">
+      <h2>チャットの勤務表を貼り付け</h2>
+      <p class="muted">職場チャットの勤務連絡をそのまま貼り付けてください。「10/1 日勤」「1日 夜勤」「3(土) 休み」「5 明」のような書き方を読み取ります。月の指定がない行は、上のカレンダーで表示中の月として扱います。</p>
+      <textarea id="pasteBox" placeholder="例）&#10;10/1 日勤&#10;10/2 夜勤&#10;10/3 明け&#10;10/4 休み"></textarea>
+      <div class="row">
+        <button class="btn" id="parseBtn" type="button">読み取ってシフトに反映</button>
+        <span class="muted" id="parseResult"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- お客様向け -->
+  <section id="tab-public" class="wrap" style="padding:0" hidden>
+    <div class="panel">
+      <h2>ご予約可能な日時</h2>
+      <div class="today-card" id="todayCard"></div>
+      <label class="f">メニュー<select id="pMenu"></select></label>
+      <div id="pubList"></div>
+      <div class="row" id="pubCopyRow"><button class="btn ghost" id="copyPub" type="button">案内文をコピー</button><span class="muted">LINEやSNSにそのまま貼れる文章です</span></div>
+      <textarea id="pubText" readonly hidden></textarea>
+    </div>
+  </section>
+
+  <!-- 設定 -->
+  <section id="tab-settings" class="wrap" style="padding:0" hidden>
+    <form class="panel" id="setForm" autocomplete="off">
+      <h2>個人LINE（当日予約の窓口）</h2>
+      <div class="row">
+        <label class="f">LINE ID<input id="sLineId" placeholder="例: esthe_hanako"></label>
+        <label class="f">友だち追加URL（任意）<input id="sLineUrl" placeholder="https://line.me/ti/p/..."></label>
+      </div>
+
+      <h2>受付できる時間</h2>
+      <p class="muted">勤務ごとに、エステの受付を始める時刻を決めます。空欄の勤務日は受付しません。</p>
+      <div class="row">
+        <label class="f"><span><span class="badge b-day">日勤</span> の日は</span><input type="time" id="st-day"></label>
+        <label class="f"><span><span class="badge b-off">休み</span> の日は</span><input type="time" id="st-off"></label>
+        <label class="f"><span><span class="badge b-ake">明け</span> の日は</span><input type="time" id="st-ake"></label>
+        <label class="f"><span><span class="badge b-night">夜勤</span> の日は</span><input type="time" id="st-night"></label>
+        <label class="f"><span><span class="badge b-late">遅番</span> の日は</span><input type="time" id="st-late"></label>
+      </div>
+      <div class="row">
+        <label class="f">最終終了時刻<input type="time" id="sClose"></label>
+        <label class="f">予約の刻み（分）<select id="sStep"><option>15</option><option>30</option><option>60</option></select></label>
+        <label class="f">施術後の片付け（分）<input type="number" id="sBuffer" min="0" step="5"></label>
+      </div>
+
+      <h2>メニュー</h2>
+      <div class="menu-row muted" style="font-size:.75rem"><span>名前</span><span>時間(分)</span><span>料金(円)</span><span></span></div>
+      <div id="menuRows" class="wrap" style="gap:6px"></div>
+      <div class="row"><button class="btn ghost small" type="button" id="addMenu">＋ メニューを追加</button></div>
+
+      <div class="row"><button class="btn" type="submit">設定を保存</button><span class="muted" id="storeInfo"></span></div>
+    </form>
+  </section>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const DOW = "日月火水木金土";
+  const SHIFT = {
+    day:   { label: "日勤", short: "日" },
+    night: { label: "夜勤", short: "夜" },
+    ake:   { label: "明け", short: "明" },
+    off:   { label: "休み", short: "休" },
+    late:  { label: "遅番", short: "遅" },
+  };
+  const CYCLE = ["", "day", "night", "ake", "off", "late"];
+  const DEFAULT_SETTINGS = {
+    lineId: "", lineUrl: "", close: "21:00", step: 30, buffer: 15,
+    starts: { day: "18:00", off: "10:00", ake: "", night: "", late: "" },
+    menus: [
+      { id: "m1", name: "フェイシャル", min: 60, price: 6000 },
+      { id: "m2", name: "ボディトリートメント", min: 90, price: 9000 },
+      { id: "m3", name: "ヘッドスパ", min: 45, price: 4500 },
+    ],
+  };
+
+  const state = {
+    settings: structuredClone(DEFAULT_SETTINGS),
+    shifts: {},      // "YYYY-MM" -> { days: { "DD": code }, sample?: bool }
+    bookings: [],    // {id, date, start, menuId, menuName, min, name, contact, via, note}
+    busy: {},        // public busy map from db (for viewers who can't read bookings)
+    month: null,     // Date of 1st of month shown
+    readOnly: false,
+  };
+
+  // ---------- helpers ----------
+  const pad = (n) => String(n).padStart(2, "0");
+  const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parseYmd = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const todayStr = () => ymd(new Date());
+  const toMin = (t) => { if (!t) return null; const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const toHm = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const md = (s) => { const d = parseYmd(s); return `${d.getMonth() + 1}/${d.getDate()}(${DOW[d.getDay()]})`; };
+  const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  let toastTimer;
+  const toast = (msg) => { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 2200); };
+
+  const shiftOf = (date) => { const [y, m, d] = date.split("-"); return state.shifts[`${y}-${m}`]?.days?.[d] || ""; };
+  const menuById = (id) => state.settings.menus.find((m) => m.id === id);
+
+  function dayWindow(date) {
+    const code = shiftOf(date);
+    const st = code ? state.settings.starts[code] : "";
+    if (!st) return null;
+    const s = toMin(st), e = toMin(state.settings.close);
+    return e > s ? [s, e] : null;
+  }
+  function busyIntervals(date, excludeId) {
+    const buf = Number(state.settings.buffer) || 0;
+    const list = state.bookings.filter((b) => b.date === date && b.id !== excludeId)
+      .map((b) => [toMin(b.start), toMin(b.start) + Number(b.min) + buf]);
+    for (const iv of state.busy[date] || []) list.push(iv);
+    return list;
+  }
+  function freeStarts(date, min, { excludeId, fromNow } = {}) {
+    const w = dayWindow(date);
+    if (!w) return [];
+    const step = Number(state.settings.step) || 30;
+    const buf = Number(state.settings.buffer) || 0;
+    const busy = busyIntervals(date, excludeId);
+    let from = w[0];
+    if (fromNow && date === todayStr()) { const n = new Date(); from = Math.max(from, Math.ceil((n.getHours() * 60 + n.getMinutes()) / step) * step); }
+    const out = [];
+    for (let t = w[0]; t + min <= w[1]; t += step) {
+      if (t < from) continue;
+      if (busy.some(([s, e]) => t < e && t + min + buf > s)) continue;
+      out.push(t);
+    }
+    return out;
+  }
+
+  // ---------- chat parsing ----------
+  const TOKEN_MAP = [
+    [/^(日勤|日|早番|早)$/, "day"], [/^(夜勤|夜|準夜|深夜|入り|入)$/, "night"], [/^(明け|明)$/, "ake"],
+    [/^(休み|休|公休|公|有休|有給|有|希望休|希)$/, "off"], [/^(遅番|遅)$/, "late"],
+  ];
+  const TOKEN_RE = "日勤|夜勤|準夜|深夜|明け|公休|休み|有休|有給|希望休|遅番|早番|入り|日|夜|明|休|公|有|希|遅|早|入";
+  function parseChat(text, baseMonth) {
+    const re = new RegExp(`(?:(\\d{1,2})\\s*[\\/／月]\\s*)?(\\d{1,2})\\s*日?\\s*(?:[(（][^)）]{0,4}[)）])?\\s*[:：\\-－ー・\\s]*(${TOKEN_RE})`, "g");
+    const out = [];
+    const norm = text.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+    let m;
+    while ((m = re.exec(norm))) {
+      const month = m[1] ? Number(m[1]) : baseMonth.getMonth() + 1;
+      const day = Number(m[2]);
+      const code = TOKEN_MAP.find(([r]) => r.test(m[3]))?.[1];
+      if (!code || month < 1 || month > 12 || day < 1 || day > 31) continue;
+      let year = baseMonth.getFullYear();
+      if (month < baseMonth.getMonth() + 1 - 6) year += 1; // e.g. showing Dec, text says 1/5
+      const d = new Date(year, month - 1, day);
+      if (d.getMonth() !== month - 1) continue;
+      out.push({ date: ymd(d), code });
+    }
+    return out;
+  }
+
+  // ---------- storage (db capability, or this browser as fallback) ----------
+  const LS_KEY = "esthe-yoyaku-v1";
+  const store = {
+    db: null,
+    loadLocal() {
+      try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); Object.assign(state, { settings: { ...DEFAULT_SETTINGS, ...d.settings }, shifts: d.shifts || {}, bookings: d.bookings || [] }); } } catch {}
+    },
+    saveLocal() {
+      if (this.db) return;
+      try { localStorage.setItem(LS_KEY, JSON.stringify({ settings: state.settings, shifts: state.shifts, bookings: state.bookings })); } catch {}
+    },
+    async saveSettings() {
+      if (this.db) await this.db.doc("settings/main").set(structuredClone(state.settings)); else this.saveLocal();
+    },
+    async saveMonth(key) {
+      if (this.db) await this.db.doc(`shifts/${key}`).set({ days: { ...(state.shifts[key]?.days || {}) } }); else this.saveLocal();
+    },
+    async saveBooking(b) {
+      if (this.db) { await this.db.doc(`bookings/${b.id}`).set(b); await this.publishBusy(); } else this.saveLocal();
+    },
+    async deleteBooking(id) {
+      if (this.db) { await this.db.doc(`bookings/${id}`).delete(); await this.publishBusy(); } else this.saveLocal();
+    },
+    // Free/busy only (no names) so the customer view works for people who cannot read bookings.
+    async publishBusy() {
+      const today = todayStr(), buf = Number(state.settings.buffer) || 0, map = {};
+      for (const b of state.bookings) {
+        if (b.date < today) continue;
+        (map[b.date] ||= []).push([toMin(b.start), toMin(b.start) + Number(b.min) + buf]);
+      }
+      await this.db.doc("public/busy").set({ days: map });
+    },
+  };
+
+  async function connectDb() {
+    if (!window.claude?.use) return;
+    let db = null;
+    try { db = await window.claude.use("db"); } catch { db = null; }
+    if (!db) return;
+    store.db = db;
+    $("storeInfo").textContent = "データはクラウドに保存されます（スマホ・PC共通）";
+    try {
+      const user = await window.claude.use("user");
+      if (user && !(await user.canEdit())) setReadOnly();
+    } catch {}
+    const onErr = () => {};
+    db.doc("settings/main").onSnapshot((s) => { if (s.exists) { state.settings = { ...DEFAULT_SETTINGS, ...structuredClone(s.data()) }; } renderAll(); }, onErr);
+    db.collection("shifts").onSnapshot((q) => { const next = {}; q.docs.forEach((d) => (next[d.id] = d.data())); state.shifts = next; renderAll(); }, onErr);
+    db.collection("bookings").onSnapshot((q) => { state.bookings = q.docs.map((d) => d.data()); renderAll(); }, onErr);
+    db.doc("public/busy").onSnapshot((s) => { state.busy = s.exists ? (s.data().days || {}) : {}; renderAll(); }, onErr);
+  }
+
+  function setReadOnly() {
+    state.readOnly = true;
+    document.querySelectorAll("#tabs button").forEach((b) => (b.hidden = b.dataset.tab !== "public"));
+    $("pubCopyRow").hidden = true;
+    showTab("public");
+  }
+
+  // ---------- tabs ----------
+  function showTab(name) {
+    document.querySelectorAll("#tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
+    ["book", "shift", "public", "settings"].forEach((t) => ($("tab-" + t).hidden = t !== name));
+    try { localStorage.setItem(LS_KEY + ":tab", name); } catch {}
+  }
+  $("tabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-tab]"); if (b) showTab(b.dataset.tab); });
+
+  // ---------- render: booking ----------
+  function renderMenuSelects() {
+    for (const id of ["bMenu", "pMenu"]) {
+      const sel = $(id), cur = sel.value;
+      sel.innerHTML = state.settings.menus.map((m) => `<option value="${esc(m.id)}">${esc(m.name)}（${m.min}分・${Number(m.price).toLocaleString()}円）</option>`).join("");
+      if (state.settings.menus.some((m) => m.id === cur)) sel.value = cur;
+    }
+  }
+  function renderTimeOptions() {
+    const date = $("bDate").value, menu = menuById($("bMenu").value), sel = $("bTime"), cur = sel.value;
+    const info = $("bDayInfo");
+    if (!date || !menu) { sel.innerHTML = ""; info.textContent = ""; return; }
+    const code = shiftOf(date), w = dayWindow(date);
+    const shiftTxt = code ? SHIFT[code].label : "シフト未入力";
+    const isToday = date === todayStr();
+    let times;
+    if ($("bOverride").checked) {
+      times = []; for (let t = 9 * 60; t + menu.min <= 23 * 60; t += Number(state.settings.step) || 30) times.push(t);
+      info.textContent = `${md(date)}：${shiftTxt}。時間外登録モードです。`;
+    } else {
+      times = freeStarts(date, Number(menu.min));
+      info.textContent = w
+        ? `${md(date)}：${shiftTxt}のため ${toHm(w[0])}〜${toHm(w[1])} 受付。空き ${times.length} 枠${isToday ? "（当日分は個人LINEで受けた予約を登録してください）" : ""}`
+        : `${md(date)}：${shiftTxt}のため受付なし。登録するときは「勤務外・時間外でも登録する」にチェックを入れてください。`;
+    }
+    sel.innerHTML = times.length ? times.map((t) => `<option>${toHm(t)}</option>`).join("") : `<option value="">空きがありません</option>`;
+    if (times.some((t) => toHm(t) === cur)) sel.value = cur;
+  }
+  function renderBookings() {
+    const today = todayStr();
+    const list = state.bookings.filter((b) => b.date >= today).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+    $("bCount").textContent = `${list.length}件`;
+    if (!list.length) { $("bookList").innerHTML = `<p class="empty">まだ予約はありません。上のフォームから登録できます。</p>`; return; }
+    const groups = {};
+    list.forEach((b) => (groups[b.date] ||= []).push(b));
+    $("bookList").innerHTML = Object.entries(groups).map(([date, items]) => {
+      const code = shiftOf(date);
+      return `<div class="day-group">
+        <div class="day-head">${md(date)} ${date === today ? '<span class="badge b-off">今日</span>' : ""}
+          <span class="badge b-${code || "none"}">${code ? SHIFT[code].label : "シフト未入力"}</span></div>
+        ${items.map((b) => {
+          const end = toHm(toMin(b.start) + Number(b.min));
+          return `<div class="bk"><div class="t">${esc(b.start)}<div class="muted" style="font-weight:400">〜${end}</div></div>
+            <div class="who"><strong>${esc(b.name)}</strong> 様 <span class="muted">${esc(b.menuName)}・${esc(b.via || "")}</span>
+            ${b.contact ? `<div class="muted">${esc(b.contact)}</div>` : ""}${b.note ? `<div class="muted">📝 ${esc(b.note)}</div>` : ""}</div>
+            <button class="btn danger small" type="button" data-del="${esc(b.id)}">取消</button></div>`;
+        }).join("")}</div>`;
+    }).join("");
+  }
+  $("bookList").addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-del]");
+    if (!btn) return;
+    if (!btn.classList.contains("armed")) { btn.classList.add("armed"); btn.textContent = "本当に取消"; setTimeout(() => { btn.classList.remove("armed"); btn.textContent = "取消"; }, 3000); return; }
+    const id = btn.dataset.del;
+    state.bookings = state.bookings.filter((b) => b.id !== id);
+    renderAll();
+    try { await store.deleteBooking(id); toast("予約を取り消しました"); } catch { toast("取消を保存できませんでした。通信を確認してもう一度お試しください"); }
+  });
+  ["bDate", "bMenu", "bOverride"].forEach((id) => $(id).addEventListener("change", renderTimeOptions));
+  $("bookForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const menu = menuById($("bMenu").value), start = $("bTime").value, date = $("bDate").value;
+    if (!menu || !start || !date) { toast("日付・メニュー・開始時間を選んでください"); return; }
+    const b = { id: uid(), date, start, menuId: menu.id, menuName: menu.name, min: Number(menu.min),
+      name: $("bName").value.trim(), contact: $("bContact").value.trim(), via: $("bVia").value, note: $("bNote").value.trim(), createdAt: new Date().toISOString() };
+    state.bookings = [...state.bookings, b];
+    renderAll();
+    try { await store.saveBooking(b); toast(`${md(date)} ${start} ${b.name}様を登録しました`); } catch { toast("保存できませんでした。通信を確認してもう一度お試しください"); }
+    $("bName").value = ""; $("bContact").value = ""; $("bNote").value = ""; $("bOverride").checked = false;
+    renderTimeOptions();
+  });
+
+  // ---------- render: shift calendar ----------
+  function renderCalendar() {
+    const m = state.month, y = m.getFullYear(), mo = m.getMonth();
+    const key = `${y}-${pad(mo + 1)}`;
+    $("monthLabel").textContent = `${y}年${mo + 1}月`;
+    const first = new Date(y, mo, 1).getDay(), days = new Date(y, mo + 1, 0).getDate(), today = todayStr();
+    let html = [...DOW].map((d, i) => `<div class="dow${i === 0 ? " sun" : ""}">${d}</div>`).join("");
+    for (let i = 0; i < first; i++) html += `<div class="cell blank"></div>`;
+    for (let d = 1; d <= days; d++) {
+      const date = `${key}-${pad(d)}`, code = state.shifts[key]?.days?.[pad(d)] || "";
+      const n = state.bookings.filter((b) => b.date === date).length;
+      html += `<button type="button" class="cell${date === today ? " today" : ""}" data-date="${date}" ${state.readOnly ? "disabled" : ""}>
+        <span class="d">${d}</span><span class="badge b-${code || "none"}">${code ? SHIFT[code].short : "—"}</span>${n ? `<span class="cnt">予約${n}</span>` : ""}</button>`;
+    }
+    $("cal").innerHTML = html;
+    const st = state.settings.starts;
+    $("legend").innerHTML = Object.entries(SHIFT).map(([k, v]) => `<span><span class="badge b-${k}">${v.short}</span> ${v.label}${st[k] ? `（${st[k]}〜受付）` : "（受付なし）"}</span>`).join("");
+    $("sampleNote").hidden = !Object.values(state.shifts).some((s) => s?.sample);
+  }
+  const monthTimers = {};
+  $("cal").addEventListener("click", (e) => {
+    const c = e.target.closest(".cell[data-date]");
+    if (!c || state.readOnly) return;
+    const [y, m, d] = c.dataset.date.split("-"), key = `${y}-${m}`;
+    const month = (state.shifts[key] ||= { days: {} });
+    month.days = { ...(month.days || {}) };
+    delete month.sample;
+    const next = CYCLE[(CYCLE.indexOf(month.days[d] || "") + 1) % CYCLE.length];
+    if (next) month.days[d] = next; else delete month.days[d];
+    renderAll();
+    clearTimeout(monthTimers[key]);
+    monthTimers[key] = setTimeout(() => store.saveMonth(key).catch(() => toast("シフトを保存できませんでした")), 700);
+  });
+  $("prevM").onclick = () => { state.month = new Date(state.month.getFullYear(), state.month.getMonth() - 1, 1); renderCalendar(); };
+  $("nextM").onclick = () => { state.month = new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1); renderCalendar(); };
+  $("parseBtn").addEventListener("click", async () => {
+    const found = parseChat($("pasteBox").value, state.month);
+    if (!found.length) { $("parseResult").textContent = "勤務を読み取れませんでした。「10/1 日勤」のように日付と勤務が並んでいるか確認してください。"; return; }
+    const touched = new Set();
+    for (const { date, code } of found) {
+      const [y, m, d] = date.split("-"), key = `${y}-${m}`;
+      const month = (state.shifts[key] ||= { days: {} });
+      if (!touched.has(key)) { month.days = { ...(month.days || {}) }; delete month.sample; }
+      month.days[d] = code;
+      touched.add(key);
+    }
+    const f = parseYmd(found[0].date); state.month = new Date(f.getFullYear(), f.getMonth(), 1);
+    renderAll();
+    try { for (const k of touched) await store.saveMonth(k); } catch { toast("シフトを保存できませんでした"); }
+    const counts = {}; found.forEach((x) => (counts[x.code] = (counts[x.code] || 0) + 1));
+    $("parseResult").textContent = `${found.length}日分を反映しました（` + Object.entries(counts).map(([k, n]) => `${SHIFT[k].label}${n}`).join("・") + "）";
+  });
+
+  // ---------- render: public view ----------
+  function lineBlock() {
+    const s = state.settings;
+    const id = s.lineId ? `<span class="lineid" id="lineIdText">${esc(s.lineId)}</span> <button class="btn small ghost" type="button" id="copyLine">IDをコピー</button>` : `<span class="muted">（設定タブでLINE IDを入れると、ここに表示されます）</span>`;
+    const link = s.lineUrl && /^https:\/\//.test(s.lineUrl) ? `<div><a class="btn line" href="${esc(s.lineUrl)}" target="_blank" rel="noopener">LINEで友だち追加</a></div>` : "";
+    return `<h3>本日（${md(todayStr())}）のご予約は個人LINEで</h3>
+      <p class="muted">当日のご予約・空き確認は、LINEで直接メッセージをお送りください。</p><div>LINE ID：${id}</div>${link}`;
+  }
+  function publicDays(menu) {
+    const out = [], base = new Date();
+    for (let i = 1; i <= 14; i++) {
+      const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i), date = ymd(d);
+      out.push({ date, w: dayWindow(date), times: freeStarts(date, Number(menu.min)) });
+    }
+    return out;
+  }
+  function renderPublic() {
+    $("todayCard").innerHTML = lineBlock();
+    const menu = menuById($("pMenu").value) || state.settings.menus[0];
+    if (!menu) { $("pubList").innerHTML = `<p class="empty">メニューが登録されていません。</p>`; return; }
+    const days = publicDays(menu);
+    $("pubList").innerHTML = `<p class="muted">翌日から2週間分・${esc(menu.name)}（${menu.min}分）で表示しています。</p>` + days.map(({ date, w, times }) => {
+      const body = !w ? `<span class="muted">受付していません</span>` : times.length ? `<div class="slots">${times.map((t) => `<span class="slot">${toHm(t)}</span>`).join("")}</div>` : `<span class="muted">満席です</span>`;
+      return `<div class="pub-day"><div class="day-head">${md(date)}${w ? ` <span class="muted" style="font-weight:400">${toHm(w[0])}〜${toHm(w[1])}</span>` : ""}</div>${body}</div>`;
+    }).join("");
+  }
+  function publicText() {
+    const menu = menuById($("pMenu").value) || state.settings.menus[0];
+    const lines = [`【エステ ご予約可能日時】${menu ? `${menu.name}（${menu.min}分）` : ""}`];
+    for (const { date, w, times } of publicDays(menu)) if (w && times.length) lines.push(`${md(date)} ${times.map(toHm).join(" / ")}`);
+    if (lines.length === 1) lines.push("現在ご案内できる空きはありません");
+    lines.push("", "※当日のご予約は個人LINEへお願いします" + (state.settings.lineId ? `（ID：${state.settings.lineId}）` : ""));
+    return lines.join("\n");
+  }
+  async function copyText(text, fallbackEl) {
+    try { await navigator.clipboard.writeText(text); toast("コピーしました"); }
+    catch { if (fallbackEl) { fallbackEl.hidden = false; fallbackEl.value = text; fallbackEl.select(); } toast("自動コピーできませんでした。表示された文章を選択してコピーしてください"); }
+  }
+  $("pMenu").addEventListener("change", renderPublic);
+  $("copyPub").addEventListener("click", () => copyText(publicText(), $("pubText")));
+  $("todayCard").addEventListener("click", (e) => {
+    if (e.target.id !== "copyLine") return;
+    navigator.clipboard.writeText(state.settings.lineId).then(() => toast("LINE IDをコピーしました"), () => {
+      const r = document.createRange(); r.selectNodeContents($("lineIdText")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("IDを選択しました。コピーしてください");
+    });
+  });
+
+  // ---------- render: settings ----------
+  function renderSettings() {
+    const s = state.settings;
+    if (document.activeElement?.closest?.("#setForm")) return; // don't clobber while typing
+    $("sLineId").value = s.lineId || ""; $("sLineUrl").value = s.lineUrl || "";
+    for (const k of Object.keys(SHIFT)) $("st-" + k).value = s.starts?.[k] || "";
+    $("sClose").value = s.close; $("sStep").value = String(s.step); $("sBuffer").value = s.buffer;
+    $("menuRows").innerHTML = s.menus.map((m) => menuRow(m)).join("");
+  }
+  const menuRow = (m) => `<div class="menu-row" data-id="${esc(m.id)}">
+      <input aria-label="メニュー名" class="mName" value="${esc(m.name)}">
+      <input aria-label="時間(分)" class="mMin" type="number" min="15" step="15" value="${Number(m.min)}">
+      <input aria-label="料金(円)" class="mPrice" type="number" min="0" step="500" value="${Number(m.price)}">
+      <button class="btn danger small" type="button" data-rm>削除</button></div>`;
+  $("addMenu").onclick = () => $("menuRows").insertAdjacentHTML("beforeend", menuRow({ id: "m" + uid(), name: "", min: 60, price: 0 }));
+  $("menuRows").addEventListener("click", (e) => { if (e.target.matches("[data-rm]")) e.target.closest(".menu-row").remove(); });
+  $("setForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const menus = [...document.querySelectorAll("#menuRows .menu-row")].map((r) => ({
+      id: r.dataset.id, name: r.querySelector(".mName").value.trim(), min: Number(r.querySelector(".mMin").value) || 60, price: Number(r.querySelector(".mPrice").value) || 0,
+    })).filter((m) => m.name);
+    if (!menus.length) { toast("メニューを1つ以上入れてください"); return; }
+    const starts = {}; for (const k of Object.keys(SHIFT)) starts[k] = $("st-" + k).value;
+    state.settings = { lineId: $("sLineId").value.trim(), lineUrl: $("sLineUrl").value.trim(), close: $("sClose").value || "21:00",
+      step: Number($("sStep").value) || 30, buffer: Math.max(0, Number($("sBuffer").value) || 0), starts, menus };
+    document.activeElement?.blur?.();
+    renderAll();
+    try { await store.saveSettings(); toast("設定を保存しました"); } catch { toast("設定を保存できませんでした"); }
+  });
+
+  function renderAll() {
+    renderMenuSelects();
+    renderTimeOptions();
+    renderBookings();
+    renderCalendar();
+    renderPublic();
+    renderSettings();
+  }
+
+  // ---------- boot ----------
+  const now = new Date();
+  $("todayLabel").textContent = `今日 ${now.getMonth() + 1}月${now.getDate()}日(${DOW[now.getDay()]})`;
+  state.month = new Date(now.getFullYear(), now.getMonth(), 1);
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  $("bDate").value = ymd(tomorrow);
+  $("storeInfo").textContent = "データはこのブラウザに保存されます";
+  store.loadLocal();
+  try { const t = localStorage.getItem(LS_KEY + ":tab"); if (t && $("tab-" + t)) showTab(t); } catch {}
+  renderAll();
+  connectDb();
+  window.__esthe = { parseChat, freeStarts, state }; // for quick checks
+})();
+</script>
