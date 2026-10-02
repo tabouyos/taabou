@@ -629,10 +629,21 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
     return `<h3>本日（${md(todayStr())}）のご予約は個人LINEで</h3>
       <p class="muted">当日のご予約・空き確認は、LINEで直接メッセージをお送りください。</p><div>LINE ID：${id}</div>${link}`;
   }
+  // 勤務は月末に翌月分が出るので、シフトが入っている最後の月の末日まで予約を受け付ける。
+  function publicEnd() {
+    const base = new Date();
+    const keys = Object.keys(state.shifts).filter((k) => Object.keys(state.shifts[k]?.days || {}).length).sort();
+    const last = keys.length ? keys[keys.length - 1].split("-").map(Number) : [base.getFullYear(), base.getMonth() + 1];
+    const end = new Date(last[0], last[1], 0);
+    const cap = new Date(base.getFullYear(), base.getMonth() + 2, 0); // 来月末まで
+    return end < cap ? end : cap;
+  }
   function publicDays() {
-    const out = [], base = new Date();
-    for (let i = 1; i <= 14; i++) {
-      const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i), date = ymd(d);
+    const out = [], base = new Date(), end = ymd(publicEnd());
+    for (let i = 1; i <= 62; i++) {
+      const date = ymd(new Date(base.getFullYear(), base.getMonth(), base.getDate() + i));
+      if (date > end) break;
+      if (!shiftOf(date)) continue; // 勤務がまだ出ていない日は出さない
       out.push({ date, w: dayWindow(date), times: freeStarts(date, dur()) });
     }
     return out;
@@ -640,13 +651,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   function renderPublic() {
     $("todayCard").innerHTML = lineBlock();
     const days = publicDays();
-    $("pubList").innerHTML = `<p class="muted">翌日から2週間分・1回${dur()}分の開始時刻です。メニュー：${esc(state.settings.items.join("・"))}から${Number(state.settings.maxPick) || 2}つまでお選びいただけます。</p>` + days.map(({ date, w, times }) => {
+    if (!days.length) { $("pubList").innerHTML = `<p class="empty">まだ予約できる日がありません。月末に翌月分の勤務が出たらご案内します。</p>`; return; }
+    $("pubList").innerHTML = `<p class="muted">翌日から${publicEnd().getMonth() + 1}月${publicEnd().getDate()}日までご予約いただけます（勤務が出た日のみ）。1回${dur()}分の開始時刻です。メニュー：${esc(state.settings.items.join("・"))}から${Number(state.settings.maxPick) || 2}つまでお選びいただけます。</p>` + days.map(({ date, w, times }) => {
       const body = !w ? `<span class="muted">受付していません</span>` : times.length ? `<div class="slots">${times.map((t) => `<span class="slot">${toHm(t)}</span>`).join("")}</div>` : `<span class="muted">空きがありません</span>`;
       return `<div class="pub-day"><div class="day-head">${md(date)}${w ? ` <span class="muted" style="font-weight:400">${toHm(w[0])}〜${toHm(w[1])}</span>` : ""}</div>${body}</div>`;
     }).join("");
   }
   function publicText() {
-    const lines = [`【ご予約可能日時】1回${dur()}分`, `メニュー：${state.settings.items.join("・")}から${Number(state.settings.maxPick) || 2}つまで`, ""];
+    const lines = [`【ご予約可能日時】${publicEnd().getMonth() + 1}/${publicEnd().getDate()}まで・1回${dur()}分`, `メニュー：${state.settings.items.join("・")}から${Number(state.settings.maxPick) || 2}つまで`, ""];
     for (const { date, w, times } of publicDays()) if (w && times.length) lines.push(`${md(date)} ${times.map(toHm).join(" / ")}`);
     if (lines.length === 3) lines.push("現在ご案内できる空きはありません");
     lines.push("", "※当日のご予約は個人LINEへお願いします" + (state.settings.lineId ? `（ID：${state.settings.lineId}）` : ""));
