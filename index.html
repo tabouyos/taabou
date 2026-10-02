@@ -146,6 +146,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .s-date { font-weight: 700; font-size: 1.15rem; }
 .s-slots { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
 .s-slot { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.05rem; color: var(--accent); background: var(--accent-soft); border: 2px solid var(--accent); border-radius: 999px; padding: 2px 14px; }
+button.s-slot { cursor: pointer; font-family: inherit; }
+button.s-slot:hover, button.s-slot:focus-visible { background: var(--accent); color: var(--on-accent); }
+.s-tap { font-size: .9rem; color: var(--muted); }
+.sheet { position: fixed; inset: 0; z-index: 40; background: rgba(40, 20, 30, .45); display: grid; align-items: end; justify-items: center; padding: 12px; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); overflow-y: auto; }
+.sheet-body { width: 100%; max-width: 520px; background: var(--surface); color: var(--fg); border-radius: 22px; padding: 20px; display: grid; gap: 14px; font-size: 17px; box-shadow: 0 10px 30px var(--glow); }
+.s-when { font-size: 1.3rem; font-weight: 700; color: var(--accent); }
 .s-foot { text-align: center; font-size: .8rem; }
 .linklike { background: none; border: 0; color: var(--muted); text-decoration: underline; font: inherit; font-size: .75rem; cursor: pointer; padding: 4px; }
 .s-time { font-size: 1.1rem; color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -292,6 +298,25 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
     </div>
     <p class="muted s-foot" id="sUpdated"></p>
     <p class="s-foot"><button class="linklike" id="ownerLink" type="button">管理画面（スタッフ用）</button></p>
+    <div class="sheet" id="reqSheet" hidden role="dialog" aria-modal="true" aria-labelledby="reqTitle">
+      <form class="sheet-body" id="reqForm" autocomplete="off">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h3 id="reqTitle">ご予約のお申し込み</h3>
+          <button class="btn ghost small" type="button" id="reqClose">閉じる</button>
+        </div>
+        <p class="s-when" id="reqWhen"></p>
+        <label class="f">お名前<input id="rName" required placeholder="山田 花子"></label>
+        <div class="f" style="display:grid;gap:6px"><span id="rItemsLabel">メニュー</span><div class="chips" id="rItems" role="group" aria-labelledby="rItemsLabel"></div></div>
+        <label class="f">ご要望など（なくても大丈夫です）<textarea id="rNote" style="min-height:60px"></textarea></label>
+        <button class="btn line" type="submit">LINEで送る</button>
+        <p class="muted">LINEが開いたら、送り先にお店（<span id="rLineId"></span>）を選んで送信してください。お店からの返信でご予約確定です。</p>
+        <details><summary class="muted">LINEが開かないとき</summary>
+          <p class="muted">下の文章をコピーして、お店のLINEに貼り付けて送ってください。</p>
+          <textarea id="rText" readonly style="min-height:120px"></textarea>
+          <button class="btn ghost small" type="button" id="rCopy">文章をコピー</button>
+        </details>
+      </form>
+    </div>
   </section>
 
 
@@ -781,16 +806,62 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
     }
     const end = parseYmd(src.end), today = todayStr();
     const days = src.days.filter((x) => x.d > today && x.t.length);
-    $("sLead").textContent = `1回 ${jpDur(src.duration)}です。下の時刻から始められます（${src.step}分ごと・${end.getMonth() + 1}月${end.getDate()}日まで）。`;
+    $("sLead").textContent = `1回 ${jpDur(src.duration)}です。ご希望の時刻を押すと、お申し込みの画面が開きます（${src.step}分ごと・${end.getMonth() + 1}月${end.getDate()}日まで）。`;
+    curSrc = src;
     $("sMenu").textContent = menuSentence(src);
     const link = src.lineUrl && /^https:\/\//.test(src.lineUrl) ? `<div style="padding-top:8px"><a class="btn line" href="${esc(src.lineUrl)}" target="_blank" rel="noopener">LINEで友だち追加</a></div>` : "";
     $("sLine").innerHTML = src.lineId ? `<div>LINE ID</div><span class="s-line-id">${esc(src.lineId)}</span>${link}` : link;
     $("sDays").innerHTML = days.length
-      ? days.map(({ d, t }) => `<div class="s-day"><div class="s-date">${jpDate(d)}</div><div class="s-slots">${t.map((m) => `<span class="s-slot">${toHm(m)}</span>`).join("")}</div></div>`).join("")
+      ? days.map(({ d, t }) => `<div class="s-day"><div class="s-date">${jpDate(d)}</div><div class="s-slots">${t.map((m) => `<button type="button" class="s-slot" data-d="${d}" data-t="${m}" aria-label="${jpDate(d)} ${toHm(m)}から予約する">${toHm(m)}</button>`).join("")}</div></div>`).join("")
       : `<p>いまご予約できる日がありません。<br>来月の分は、月末にお知らせします。</p>`;
     const at = src.at ? new Date(src.at) : null;
     $("sUpdated").textContent = at ? `${at.getMonth() + 1}月${at.getDate()}日 ${toHm(at.getHours() * 60 + at.getMinutes())} 時点の空き状況です` : "";
   }
+  // ---------- お客様：時刻を押す → お申し込み → LINEで送る ----------
+  let curSrc = null, reqSlot = null;
+  $("sDays").addEventListener("click", (e) => {
+    const b = e.target.closest("button.s-slot");
+    if (!b || !curSrc) return;
+    reqSlot = { d: b.dataset.d, t: Number(b.dataset.t) };
+    $("reqWhen").textContent = `${jpDate(reqSlot.d)} ${toHm(reqSlot.t)}〜（${jpDur(curSrc.duration)}）`;
+    $("rItemsLabel").textContent = `メニュー（${curSrc.maxPick}つまで選べます）`;
+    $("rItems").innerHTML = curSrc.items.map((name, i) =>
+      `<label class="chip"><input type="checkbox" id="rItem${i}" value="${esc(name)}"><span>${esc(name)}</span></label>`).join("");
+    $("rLineId").textContent = curSrc.lineId || "お店";
+    $("reqSheet").hidden = false;
+    updateReqText();
+    setTimeout(() => $("rName").focus(), 50);
+  });
+  $("rItems").addEventListener("change", () => {
+    const boxes = [...$("rItems").querySelectorAll("input")], n = boxes.filter((x) => x.checked).length;
+    boxes.forEach((x) => (x.disabled = !x.checked && n >= (curSrc?.maxPick || 2)));
+    updateReqText();
+  });
+  ["rName", "rNote"].forEach((id) => $(id).addEventListener("input", updateReqText));
+  function reqText() {
+    const items = [...$("rItems").querySelectorAll("input:checked")].map((x) => x.value);
+    return ["エステの予約をお願いします。", `日時：${jpDate(reqSlot.d)} ${toHm(reqSlot.t)}〜`, `お名前：${$("rName").value.trim()}`,
+      `メニュー：${items.join("・") || "（当日相談）"}`, ...($("rNote").value.trim() ? [`ご要望：${$("rNote").value.trim()}`] : [])].join("\n");
+  }
+  function updateReqText() { if (reqSlot) $("rText").value = reqText(); }
+  const closeReq = () => { $("reqSheet").hidden = true; };
+  $("reqClose").addEventListener("click", closeReq);
+  $("reqSheet").addEventListener("click", (e) => { if (e.target.id === "reqSheet") closeReq(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("reqSheet").hidden) closeReq(); });
+  $("reqForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!$("rName").value.trim()) { toast("お名前を入れてください"); $("rName").focus(); return; }
+    const text = reqText();
+    $("rText").value = text;
+    // LINEアプリを開き、送り先を選んで送る画面にする（個人LINEあて）
+    const a = document.createElement("a");
+    a.href = "https://line.me/R/msg/text/?" + encodeURIComponent(text);
+    a.target = "_blank"; a.rel = "noopener";
+    document.body.appendChild(a); a.click(); a.remove();
+    toast("LINEを開きます。送り先にお店を選んでください");
+  });
+  $("rCopy").addEventListener("click", () => copyText($("rText").value, $("rText")));
+
   function publicText() {
     const end = publicEnd(), days = simpleDays();
     const lines = ["【エステ ご予約できる日】", `1回 ${jpDur(dur())}です（${end.getMonth() + 1}月${end.getDate()}日まで）`, menuSentence(liveSnapshot()), ""];
