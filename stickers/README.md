@@ -10,6 +10,7 @@
 | 別シリーズ `mofuneko` | もふもふねこ 毎日のきもち 40個（持ち込みの一覧画像から作成） | 申請準備中 |
 | 別シリーズ `mofuneko_nega` | もふもふねこ そんな時もある 40個（ネガティブ表現・持ち込み画像から作成） | 申請準備中 |
 | 別シリーズ `mofuneko_aki` | もふもふねこ 秋だー！ 40個（秋・持ち込み画像から作成） | 申請準備中 |
+| 別シリーズ `shiba_moeru` | 燃えるシバイヌ 40個（持ち込み画像48コマから40個を選んで作成） | 申請準備中 |
 | 別シリーズ `mofuneko_fuyu` | もふもふねこ 冬だー！ 40個（冬・持ち込み画像48コマから40個を選んで作成） | 申請準備中 |
 
 ![第1弾](output/keigo/preview.png)
@@ -155,6 +156,23 @@ python stickers/from_sheet.py stickers/source/mofuneko_fuyu_sheet_fixed.png mofu
   - タイトル（日本語）：もふもふねこ 冬だー！ ／（英語）：Fluffy Kitty: Warm Winter Days
   - 説明文（日本語）：雪・こたつ・マフラー・雪だるま。もふもふのねこが冬のあったかい気持ちを届けます。あいさつにも使える冬いっぱいの40種類。
   - 説明文（英語）：Snow, kotatsu, scarves and snowmen. A fluffy kitty shares warm winter feelings in 40 stickers you can use every day.
+
+## 燃えるシバイヌ
+```bash
+python stickers/from_sheet.py stickers/source/shiba_moeru_sheet.webp shiba_moeru --cols 8 --drop 12,14,21,26,31,32,34,45 --main 1
+```
+- 48コマから8個を外して40個：12「よしっ！」/ 14「わーい！」（46と重複）/ 21「そんな時もある！」/ 26「もう無理…」（25・27と重複）/
+  31「ねむい…」（29・48と重複）/ 32「寒い…」（季節限定）/ 34「お疲れさまです！」（33と重複、マグのロゴ）/ 45「怒ってないよ〜」
+- 文案：燃えるシバイヌ ／ Fired-Up Shiba
+  - やるぞー！燃えてきた！熱い柴犬が全力で応援。燃え尽きた…も言える、毎日使える40種類。
+  - Let's go! A fired-up Shiba cheers you on with full power, and admits when it's burnt out too. 40 everyday stickers.
+
+## アニメーションスタンプ（試作）
+```bash
+python stickers/animate.py shiba_moeru 1:bounce 2:shake 21:squash 37:zoom
+```
+- 静止画1枚を「はねる(bounce)・ぶるぶる(shake)・ゆらゆら(wiggle)・ぽよん(squash)・どーん(zoom)・ぺこり(nod)」で動かす簡易アニメ（APNG）
+- LINE規格：320x270以内、5〜20コマ、4秒以内、1MB以下。1セットは8・16・24個。12コマ×90ms×4ループで作り、256色に減色して1MB以下に収めている
 
 ## 次の展開案（シリーズ化すると売上が伸びる）
 - 動くスタンプ版（単価が上がる）
