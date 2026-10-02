@@ -2,7 +2,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap">
-<style>
+<style id="css">
 /* Layout: one narrow column (phone first), sticky tab bar, shift calendar as a 7-col grid. */
 :root {
   --bg: #fff5f8;
@@ -146,6 +146,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .s-date { font-weight: 700; font-size: 1.15rem; }
 .s-slots { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
 .s-slot { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.05rem; color: var(--accent); background: var(--accent-soft); border: 2px solid var(--accent); border-radius: 999px; padding: 2px 14px; }
+.s-foot { text-align: center; font-size: .8rem; }
+.linklike { background: none; border: 0; color: var(--muted); text-decoration: underline; font: inherit; font-size: .75rem; cursor: pointer; padding: 4px; }
 .s-time { font-size: 1.1rem; color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
 body.is-simple header.top, body.is-simple nav.tabs, body.is-simple #sampleNote { display: none !important; }
 body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
@@ -154,6 +156,8 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
+<div id="root"></div>
+<script type="text/html" id="markup">
 <div class="wrap">
   <header class="top">
     <h1>エステ予約帳</h1>
@@ -250,6 +254,12 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
 
   <!-- お客様向け -->
   <section id="tab-public" class="wrap" style="padding:0" hidden>
+    <div class="panel" id="linkPanel">
+      <h2>お客様用リンク</h2>
+      <p class="muted">このページのリンクを送ると、お客様はログインなしで空き時間を見られます（予約はLINEで受けます）。予約・シフト・NG日時を変えたら、下のボタンでお客様用の表示を新しくしてください。</p>
+      <p class="note" id="snapState"></p>
+      <div class="row"><button class="btn" id="publishSnap" type="button">お客様用リンクを更新</button></div>
+    </div>
     <div class="panel">
       <h2>ご予約可能な日時</h2>
       <div class="today-card" id="todayCard"></div>
@@ -280,6 +290,8 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
       <div id="sLine"></div>
       <p>今日のご予約も、LINEでお気軽にどうぞ。</p>
     </div>
+    <p class="muted s-foot" id="sUpdated"></p>
+    <p class="s-foot"><button class="linklike" id="ownerLink" type="button">管理画面（スタッフ用）</button></p>
   </section>
 
 
@@ -320,10 +332,14 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
 </div>
 
 <div class="toast" id="toast" hidden></div>
+</script>
+<script type="application/json" id="snap">null</script>
 
-<script>
+<script id="app">
 (() => {
   "use strict";
+  // 画面の部品は #markup にまとめてある（お客様用リンクの更新時に、このページ自身を作り直すため）
+  document.getElementById("root").innerHTML = document.getElementById("markup").textContent;
   const $ = (id) => document.getElementById(id);
   const DOW = "日月火水木金土";
   const SHIFT = {
@@ -358,6 +374,7 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
     busy: {},        // public busy map from db (for viewers who can't read bookings)
     month: null,     // Date of 1st of month shown
     readOnly: false,
+    customer: false, // お客様用リンクで開いた人（ログインなし・スタッフ以外）
   };
 
   // ---------- helpers ----------
@@ -482,11 +499,6 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
     if (!db) return;
     store.db = db;
     $("storeInfo").textContent = "データはクラウドに保存されます（スマホ・PC共通）";
-    try {
-      const user = await window.claude.use("user");
-      // Only hide the owner tools when the platform clearly says this viewer cannot write.
-      if (user && !(await user.isOwner()) && !(await user.canEdit()) && (await user.can("data.write")) === false) setReadOnly();
-    } catch {}
     const onErr = () => {};
     db.doc("settings/main").onSnapshot((s) => { if (s.exists) { state.settings = normalizeSettings(s.data()); } renderAll(); }, onErr);
     db.collection("shifts").onSnapshot((q) => {
@@ -500,12 +512,6 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
     db.doc("public/busy").onSnapshot((s) => { state.busy = s.exists ? (s.data().days || {}) : {}; renderAll(); }, onErr);
   }
 
-  function setReadOnly() {
-    state.readOnly = true;
-    document.querySelectorAll("#tabs button").forEach((b) => (b.hidden = b.dataset.tab !== "public"));
-    $("pubCopyRow").hidden = true;
-    setSimple(true);
-  }
 
   // ---------- tabs ----------
   function showTab(name) {
@@ -754,20 +760,40 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
     });
   }
   const simpleDays = () => publicDays().filter((x) => x.w && x.times.length);
-  const menuSentence = () => `メニュー：${state.settings.items.join("・")}（${Number(state.settings.maxPick) || 2}つまで選べます）`;
-  function renderSimple() {
-    const end = publicEnd(), days = simpleDays();
-    $("sLead").textContent = `1回 ${jpDur(dur())}です。下の時刻から始められます（${state.settings.step || 30}分ごと・${end.getMonth() + 1}月${end.getDate()}日まで）。`;
-    $("sMenu").textContent = menuSentence();
-    const id = state.settings.lineId;
-    $("sLine").innerHTML = id ? `<div>LINE ID</div><span class="s-line-id">${esc(id)}</span>` : "";
+  const menuSentence = (src) => `メニュー：${src.items.join("・")}（${src.maxPick}つまで選べます）`;
+  // お客様に見せる内容（名前などは含めない）
+  function liveSnapshot() {
+    return { end: ymd(publicEnd()), step: Number(state.settings.step) || 30, duration: dur(), items: [...state.settings.items],
+      maxPick: Number(state.settings.maxPick) || 2, lineId: state.settings.lineId || "", lineUrl: state.settings.lineUrl || "",
+      days: simpleDays().map((x) => ({ d: x.date, t: x.times })) };
+  }
+  const SNAP = (() => { try { return JSON.parse($("snap").textContent); } catch { return null; } })();
+  const sameSnap = (a, b) => {
+    if (!a || !b) return false;
+    const strip = (x) => JSON.stringify({ ...x, at: undefined, days: x.days.filter((d) => d.d > todayStr()) });
+    return strip(a) === strip(b);
+  };
+  function renderSimple(src) {
+    if (!src) {
+      $("sLead").textContent = "ただいま準備中です。ご予約はLINEでお問い合わせください。";
+      ["sMenu", "sLine", "sDays", "sUpdated"].forEach((id) => ($(id).innerHTML = ""));
+      return;
+    }
+    const end = parseYmd(src.end), today = todayStr();
+    const days = src.days.filter((x) => x.d > today && x.t.length);
+    $("sLead").textContent = `1回 ${jpDur(src.duration)}です。下の時刻から始められます（${src.step}分ごと・${end.getMonth() + 1}月${end.getDate()}日まで）。`;
+    $("sMenu").textContent = menuSentence(src);
+    const link = src.lineUrl && /^https:\/\//.test(src.lineUrl) ? `<div style="padding-top:8px"><a class="btn line" href="${esc(src.lineUrl)}" target="_blank" rel="noopener">LINEで友だち追加</a></div>` : "";
+    $("sLine").innerHTML = src.lineId ? `<div>LINE ID</div><span class="s-line-id">${esc(src.lineId)}</span>${link}` : link;
     $("sDays").innerHTML = days.length
-      ? days.map(({ date, times }) => `<div class="s-day"><div class="s-date">${jpDate(date)}</div><div class="s-slots">${times.map((t) => `<span class="s-slot">${toHm(t)}</span>`).join("")}</div></div>`).join("")
+      ? days.map(({ d, t }) => `<div class="s-day"><div class="s-date">${jpDate(d)}</div><div class="s-slots">${t.map((m) => `<span class="s-slot">${toHm(m)}</span>`).join("")}</div></div>`).join("")
       : `<p>いまご予約できる日がありません。<br>来月の分は、月末にお知らせします。</p>`;
+    const at = src.at ? new Date(src.at) : null;
+    $("sUpdated").textContent = at ? `${at.getMonth() + 1}月${at.getDate()}日 ${toHm(at.getHours() * 60 + at.getMinutes())} 時点の空き状況です` : "";
   }
   function publicText() {
     const end = publicEnd(), days = simpleDays();
-    const lines = ["【エステ ご予約できる日】", `1回 ${jpDur(dur())}です（${end.getMonth() + 1}月${end.getDate()}日まで）`, menuSentence(), ""];
+    const lines = ["【エステ ご予約できる日】", `1回 ${jpDur(dur())}です（${end.getMonth() + 1}月${end.getDate()}日まで）`, menuSentence(liveSnapshot()), ""];
     for (const { date, times } of days) {
       lines.push(`■ ${jpDate(date)}`);
       for (let i = 0; i < times.length; i += 4) lines.push("　" + times.slice(i, i + 4).map(toHm).join("　")); // 1行4つまでで読みやすく
@@ -779,9 +805,49 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
   function setSimple(on) {
     $("simpleView").hidden = !on;
     document.body.classList.toggle("is-simple", on);
-    $("previewBackRow").hidden = state.readOnly;
-    if (on) { renderSimple(); scrollTo(0, 0); }
+    $("previewBackRow").hidden = state.customer;
+    $("ownerLink").hidden = !state.customer;
+    if (on) { renderSimple(state.customer ? SNAP : liveSnapshot()); scrollTo(0, 0); }
   }
+
+  // ---------- お客様用リンク：空き状況をページに書き込んで公開し直す ----------
+  const FONT_LINKS = '<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap">';
+  const FALLBACK_RESET = ":root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.5 system-ui,-apple-system,sans-serif;background:#fafaf9}img{max-width:100%}[hidden]{display:none!important}";
+  function buildPage(snap) {
+    const reset = document.head.querySelector("style:not(#css)")?.textContent || FALLBACK_RESET;
+    const json = JSON.stringify(snap).replace(/</g, "\\u003c");
+    const end = "</scr" + "ipt>";
+    return '<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>' + reset + "</style></head><body>"
+      + "<title>エステ予約帳</title>\n" + FONT_LINKS + '\n<style id="css">' + $("css").textContent + "</style>\n"
+      + '<div id="root"></div>\n<script type="text/html" id="markup">' + $("markup").textContent + end + "\n"
+      + '<script type="application/json" id="snap">' + json + end + "\n"
+      + '<script id="app">' + $("app").textContent + end + "\n</body></html>";
+  }
+  function renderSnapState() {
+    const el = $("snapState");
+    if (!SNAP) { el.textContent = "まだお客様用リンクを作っていません。ボタンを押すと、今の空き状況がお客様用リンクに出ます。"; return; }
+    const at = new Date(SNAP.at), when = `${at.getMonth() + 1}/${at.getDate()} ${toHm(at.getHours() * 60 + at.getMinutes())}`;
+    el.textContent = sameSnap(SNAP, liveSnapshot()) ? `お客様用リンクは最新です（${when} 更新）。` : `予約や勤務が変わっています。ボタンを押して更新してください（前回 ${when}）。`;
+  }
+  $("publishSnap").addEventListener("click", async () => {
+    let art = null;
+    try { art = await window.claude?.use?.("artifact"); } catch {}
+    if (!art) { toast("この画面では更新できません。Claudeのページから開いてください"); return; }
+    const btn = $("publishSnap"); btn.disabled = true; $("snapState").textContent = "更新しています…（数秒で画面が読み込み直されます）";
+    try { await art.publish(buildPage({ ...liveSnapshot(), at: new Date().toISOString() })); }
+    catch (e) {
+      btn.disabled = false;
+      if (e?.code === "conflict") { $("snapState").textContent = "別の画面で先に更新されました。読み込み直したあと、もう一度押してください。"; return; }
+      $("snapState").textContent = `更新できませんでした（${e?.code || "通信エラー"}）。少し待ってからもう一度押してください。`;
+    }
+  });
+  async function enterAdmin() {
+    state.customer = false;
+    setSimple(false);
+    try { const t = localStorage.getItem(LS_KEY + ":tab"); showTab(t && $("tab-" + t) ? t : "book"); } catch { showTab("book"); }
+    await connectDb();
+  }
+  $("ownerLink").addEventListener("click", enterAdmin);
   $("previewBtn").addEventListener("click", () => setSimple(true));
   $("previewBack").addEventListener("click", () => { setSimple(false); showTab("public"); });
   async function copyText(text, fallbackEl) {
@@ -825,7 +891,8 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
     renderCalendar();
     renderBlocks();
     renderPublic();
-    if (!$("simpleView").hidden) renderSimple();
+    if (!$("simpleView").hidden) renderSimple(state.customer ? SNAP : liveSnapshot());
+    renderSnapState();
     renderSettings();
   }
 
@@ -841,7 +908,21 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
   try { const t = localStorage.getItem(LS_KEY + ":tab"); if (t && $("tab-" + t)) showTab(t); } catch {}
   renderBrush();
   renderAll();
-  connectDb();
+  if (window.claude?.use) {
+    // Claudeのページとして開かれた：まずお客様向けを出し、オーナーと分かったら管理画面に切り替える
+    state.customer = true;
+    setSimple(true);
+    (async () => {
+      let staff = false;
+      try {
+        const user = await window.claude.use("user");
+        if (user) staff = (await user.isOwner()) || (await user.canEdit()) || (await user.can("data.write")) === true;
+      } catch {}
+      if (staff) enterAdmin();
+    })();
+  } else {
+    connectDb(); // ファイルを直接開いたとき（このブラウザに保存）
+  }
   window.__esthe = { parseChat, freeStarts, state }; // for quick checks
 })();
 </script>
