@@ -10,6 +10,7 @@
 | 別シリーズ `mofuneko` | もふもふねこ 毎日のきもち 40個（持ち込みの一覧画像から作成） | 申請準備中 |
 | 別シリーズ `mofuneko_nega` | もふもふねこ そんな時もある 40個（ネガティブ表現・持ち込み画像から作成） | 申請準備中 |
 | 別シリーズ `mofuneko_aki` | もふもふねこ 秋だー！ 40個（秋・持ち込み画像から作成） | 申請準備中 |
+| 別シリーズ `mofuneko_fuyu` | もふもふねこ 冬だー！ 40個（冬・持ち込み画像48コマから40個を選んで作成） | 申請準備中 |
 
 ![第1弾](output/keigo/preview.png)
 ![第2弾](output/kisetsu/preview.png)
@@ -19,6 +20,7 @@
 ![もふもふねこ](output/mofuneko/preview.png)
 ![もふもふねこ そんな時もある](output/mofuneko_nega/preview.png)
 ![もふもふねこ 秋だー！](output/mofuneko_aki/preview.png)
+![もふもふねこ 冬だー！](output/mofuneko_fuyu/preview.png)
 
 > `output/keigo/` は申請した時点の画像をそのまま残している。今の generate.py で作り直すと、腕が第2弾と同じ丸い手になる。
 
@@ -140,6 +142,18 @@ python stickers/from_sheet.py stickers/source/mofuneko_aki_sheet.webp mofuneko_a
   - タイトル（日本語）：もふもふねこ 秋だー！ ／（英語）：Fluffy Kitty: Cozy Autumn Days
   - 説明文（日本語）：紅葉・どんぐり・お月見・ハロウィン。もふもふのねこが秋の気持ちを届けます。あいさつにも使える秋いっぱいの40種類。
   - 説明文（英語）：Autumn leaves, acorns, moon viewing and Halloween. A fluffy kitty shares cozy autumn feelings in 40 stickers you can use every day.
+
+## もふもふねこ 冬だー！
+```bash
+python stickers/from_sheet.py stickers/source/mofuneko_fuyu_sheet.webp mofuneko_fuyu --cols 8 --drop 21,24,27,36,38,39,44,47 --main 1
+```
+- 元画像は48コマなので、似ている8個を外して40個にしている
+  - 21「楽しいね！」/ 24「ゆっくりしてね」（46と重複）/ 27「さむすぎる…」（9と重複）/ 36「いつもありがとう」/
+    38「一緒にがんばろう！」/ 39「…」（32「ちらっ」と同じ構図）/ 44「あたたかくして過ごしてね」（6と重複）/ 47「素敵な冬を…」
+- **販売ページ用の文案**
+  - タイトル（日本語）：もふもふねこ 冬だー！ ／（英語）：Fluffy Kitty: Warm Winter Days
+  - 説明文（日本語）：雪・こたつ・マフラー・雪だるま。もふもふのねこが冬のあったかい気持ちを届けます。あいさつにも使える冬いっぱいの40種類。
+  - 説明文（英語）：Snow, kotatsu, scarves and snowmen. A fluffy kitty shares warm winter feelings in 40 stickers you can use every day.
 
 ## 次の展開案（シリーズ化すると売上が伸びる）
 - 動くスタンプ版（単価が上がる）
