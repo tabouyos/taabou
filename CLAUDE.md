@@ -58,4 +58,4 @@ python3 月ノルマ/check_totals.py 月ノルマ/<ファイル名>.xlsx
 
 - 本体は単一HTML `健診システム/kenshin-v16.html`(正=カノニカル)+ Supabase。詳細は `健診システム/README.md`
 - 編集は外科的に、テンプレートリテラル禁止(シングルクォート+連結)。変更後は `<script>` を抽出して `node --check` で構文検証
-- `kenshin-migration-add-columns.sql` と `健診センターシステム_使用書.html` は README 記載のみで未登録
+- マイグレーションSQL `kenshin-migration-add-columns.sql`、スタッフ向け `健診センターシステム_使用書.html` も同フォルダ。機能を変えたら使用書も合わせて更新する
