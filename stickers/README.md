@@ -8,6 +8,7 @@
 | 第4弾 `fuwafuwa` | ふわふわしろねこ 全肯定 40個（癒し系） | 申請準備中 |
 | 第5弾 `shuru` | 真顔しろねこ シュール敬語 40個 | 申請準備中 |
 | 別シリーズ `mofuneko` | もふもふねこ 毎日のきもち 40個（持ち込みの一覧画像から作成） | 申請準備中 |
+| 別シリーズ `mofuneko_nega` | もふもふねこ そんな時もある 40個（ネガティブ表現・持ち込み画像から作成） | 申請準備中 |
 
 ![第1弾](output/keigo/preview.png)
 ![第2弾](output/kisetsu/preview.png)
@@ -15,6 +16,7 @@
 ![第4弾](output/fuwafuwa/preview.png)
 ![第5弾](output/shuru/preview.png)
 ![もふもふねこ](output/mofuneko/preview.png)
+![もふもふねこ そんな時もある](output/mofuneko_nega/preview.png)
 
 > `output/keigo/` は申請した時点の画像をそのまま残している。今の generate.py で作り直すと、腕が第2弾と同じ丸い手になる。
 
@@ -111,6 +113,18 @@ python stickers/from_sheet.py stickers/source/mofuneko_sheet.webp mofuneko --dro
   - タイトル（日本語）：もふもふねこ 毎日のきもち ／（英語）：Fluffy Kitty: Everyday Feelings
   - 説明文（日本語）：もふもふのねこが毎日のきもちを届けます。ありがとう・了解・おつかれさま・大好きなど、家族や友だちと使いやすい40種類。
   - 説明文（英語）：A super fluffy kitty shares everyday feelings: thank you, OK, good job, love you and more. 40 stickers for family and friends.
+
+## もふもふねこ そんな時もある（ネガティブ表現）
+```bash
+python stickers/from_sheet.py stickers/source/mofuneko_negative_sheet.webp mofuneko_nega --cols 8 --main 1
+```
+- この画像はコマの幅が行ごとにバラバラで、小物（壁・箱など）が隣のコマにはみ出しているため `--cols 8` を指定する。
+  行ごとに縦の白い隙間で切り（足りなければいちばん広いコマを線の少ない所で切る）、境目をまたぐ絵や文字は多く入っている側のコマに入れる
+- LINEの特集企画「そんな時もある！ネガティブ表現スタンプ」特集に合うので、申請画面の「特集企画」で参加するを選ぶ
+- **販売ページ用の文案**
+  - タイトル（日本語）：もふもふねこ そんな時もある ／（英語）：Fluffy Kitty: It's Okay to Feel Down
+  - 説明文（日本語）：もう無理…やる気ゼロ…そんな時もある！もふもふのねこが、ゆるいネガティブな気持ちをやさしく代弁する40種類。
+  - 説明文（英語）：A fluffy kitty speaks for your low days: so tired, zero motivation, I'm done... and that's okay. 40 gentle stickers for every mood.
 
 ## 次の展開案（シリーズ化すると売上が伸びる）
 - 動くスタンプ版（単価が上がる）

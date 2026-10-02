@@ -45,16 +45,75 @@ def find_bands(nonwhite_counts, min_gap=3):
     return merged
 
 
-def split_sheet(sheet):
+def row_cuts(ink, ncols, min_gap=2):
+    """1行の縦の白い隙間から ncols 個に切る位置を決める。
+    隙間が足りないときは、いちばん幅の広いコマを中ほどの線が少ない所で切る。"""
+    width = len(ink)
+    gaps, st = [], None
+    for i, v in enumerate(ink):
+        if v <= 1 and st is None:
+            st = i
+        if v > 1 and st is not None:
+            if i - st >= min_gap and st > 5 and i < width - 5:
+                gaps.append((st + i - 1) // 2)
+            st = None
+    cuts = sorted(gaps)
+    while len(cuts) < ncols - 1:
+        edges = [0] + cuts + [width]
+        k = int(np.argmax(np.diff(edges)))
+        lo, hi = edges[k], edges[k + 1]
+        m0, m1 = lo + (hi - lo) * 3 // 10, lo + (hi - lo) * 7 // 10
+        cuts = sorted(cuts + [m0 + int(np.argmin(ink[m0:m1]))])
+    while len(cuts) > ncols - 1:  # 多すぎるときは、いちばん狭いコマをつなぐ
+        edges = [0] + cuts + [width]
+        k = int(np.argmin(np.diff(edges)))
+        cuts.pop(max(0, min(k, len(cuts) - 1)))
+    return [0] + cuts + [width]
+
+
+def split_row(a, nonwhite, y0, y1, ncols):
+    """1行を ncols 個に切る。境目をまたぐ絵・文字は、多く入っている側のコマに入れる"""
+    ink = nonwhite[y0:y1]
+    edges = row_cuts(ink.sum(axis=0), ncols)
+    labels, n = ndimage.label(ink, structure=np.ones((3, 3)))
+    cells = []
+    for k in range(ncols):
+        x0, x1 = edges[k], edges[k + 1]
+        lab = labels[:, x0:x1]
+        ids = np.unique(lab[lab > 0])
+        own = []
+        for i in ids:
+            comp = labels == i
+            inside = comp[:, x0:x1].sum()
+            if inside * 2 >= comp.sum():
+                own.append(i)
+        mask = np.isin(labels, own)
+        # 自分のかたまりが境目の外にはみ出していれば、その分も含める
+        xs = np.where(mask.any(axis=0))[0]
+        bx0, bx1 = (min(x0, xs.min()), max(x1, xs.max() + 1)) if len(xs) else (x0, x1)
+        crop = a[y0:y1, bx0:bx1].copy()
+        other = ink[:, bx0:bx1] & ~mask[:, bx0:bx1]
+        # 白っぽい毛の内側は ink に入らないので、他人のかたまりの中だけ白で消す
+        other = ndimage.binary_fill_holes(ndimage.binary_closing(other, structure=np.ones((5, 5))))
+        crop[other] = 255
+        cells.append(ImageOps.expand(Image.fromarray(crop.astype(np.uint8)), border=4, fill=(255, 255, 255)))
+    return cells
+
+
+def split_sheet(sheet, ncols=None):
+    """格子を切り分ける。ncols を指定すると、行ごとに縦の隙間を探して ncols 個に分ける
+    （コマの幅が行ごとにバラバラな画像向け）"""
     a = np.asarray(sheet.convert("RGB")).astype(int)
     nonwhite = a.min(axis=2) < 235
-    cols = find_bands(nonwhite.sum(axis=0))
     rows = find_bands(nonwhite.sum(axis=1))
+    if not ncols:  # 縦の白い隙間が全行を通っているきれいな格子
+        cols = find_bands(nonwhite.sum(axis=0))
+        cells = [sheet.crop((max(0, x0 - 4), max(0, y0 - 4), x1 + 4, y1 + 4)) for y0, y1 in rows for x0, x1 in cols]
+        return cells, len(rows), len(cols)
     cells = []
     for y0, y1 in rows:
-        for x0, x1 in cols:
-            cells.append(sheet.crop((max(0, x0 - 4), max(0, y0 - 4), x1 + 4, y1 + 4)))
-    return cells, len(rows), len(cols)
+        cells += split_row(a, nonwhite, max(0, y0 - 4), min(a.shape[0], y1 + 4), ncols)
+    return cells, len(rows), ncols
 
 
 def remove_background(cell, white_min=245, neutral=14, seal=4):
@@ -113,11 +172,12 @@ def main():
     ap.add_argument("--drop", default="", help="使わないセル番号（左上から1,2,3…）をカンマ区切りで")
     ap.add_argument("--main", type=int, default=1, help="メイン画像にするセル番号")
     ap.add_argument("--tab", type=int, default=None, help="タブ画像にするセル番号（省略時はメインと同じ）")
+    ap.add_argument("--cols", type=int, default=None, help="列の数（白い隙間で切れない画像のときに指定）")
     ap.add_argument("--tab-cut", type=float, default=0.27, help="タブ画像で上から切り落とす割合（文字の部分）")
     args = ap.parse_args()
 
     sheet = Image.open(args.sheet).convert("RGB")
-    cells, nr, nc = split_sheet(sheet)
+    cells, nr, nc = split_sheet(sheet, args.cols)
     print(f"{nr}行 x {nc}列 = {len(cells)}セル")
     drop = {int(x) for x in args.drop.split(",") if x}
     keep = [i for i in range(1, len(cells) + 1) if i not in drop]
