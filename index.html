@@ -144,6 +144,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .s-day { display: grid; gap: 2px; padding-block: 12px; border-top: 2px dotted var(--line-c); }
 .s-day:first-child { border-top: 0; padding-top: 0; }
 .s-date { font-weight: 700; font-size: 1.15rem; }
+.s-slots { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
+.s-slot { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.05rem; color: var(--accent); background: var(--accent-soft); border: 2px solid var(--accent); border-radius: 999px; padding: 2px 14px; }
 .s-time { font-size: 1.1rem; color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
 body.is-simple header.top, body.is-simple nav.tabs, body.is-simple #sampleNote { display: none !important; }
 body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
@@ -756,20 +758,23 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
   const menuSentence = () => `メニュー：${state.settings.items.join("・")}（${Number(state.settings.maxPick) || 2}つまで選べます）`;
   function renderSimple() {
     const end = publicEnd(), days = simpleDays();
-    $("sLead").textContent = `1回 ${jpDur(dur())}です。下の時間のあいだなら、お好きな時間に始められます。（${end.getMonth() + 1}月${end.getDate()}日まで）`;
+    $("sLead").textContent = `1回 ${jpDur(dur())}です。下の時刻から始められます（${state.settings.step || 30}分ごと・${end.getMonth() + 1}月${end.getDate()}日まで）。`;
     $("sMenu").textContent = menuSentence();
     const id = state.settings.lineId;
     $("sLine").innerHTML = id ? `<div>LINE ID</div><span class="s-line-id">${esc(id)}</span>` : "";
     $("sDays").innerHTML = days.length
-      ? days.map(({ date, times }) => `<div class="s-day"><div class="s-date">${jpDate(date)}</div>${timeRanges(times).map((r) => `<div class="s-time">${esc(r)}</div>`).join("")}</div>`).join("")
+      ? days.map(({ date, times }) => `<div class="s-day"><div class="s-date">${jpDate(date)}</div><div class="s-slots">${times.map((t) => `<span class="s-slot">${toHm(t)}</span>`).join("")}</div></div>`).join("")
       : `<p>いまご予約できる日がありません。<br>来月の分は、月末にお知らせします。</p>`;
   }
   function publicText() {
     const end = publicEnd(), days = simpleDays();
     const lines = ["【エステ ご予約できる日】", `1回 ${jpDur(dur())}です（${end.getMonth() + 1}月${end.getDate()}日まで）`, menuSentence(), ""];
-    for (const { date, times } of days) { lines.push(`■ ${jpDate(date)}`); timeRanges(times).forEach((r) => lines.push(`　${r}`)); }
+    for (const { date, times } of days) {
+      lines.push(`■ ${jpDate(date)}`);
+      for (let i = 0; i < times.length; i += 4) lines.push("　" + times.slice(i, i + 4).map(toHm).join("　")); // 1行4つまでで読みやすく
+    }
     if (!days.length) lines.push("いまご予約できる日がありません。");
-    lines.push("", "上の時間のあいだなら、お好きな時間に始められます。", "ご予約は、このLINEに", "①お名前　②ご希望の日と時間　③メニュー", "を送ってください。今日のご予約もLINEでどうぞ。");
+    lines.push("", `上の時刻から始められます（${state.settings.step || 30}分ごと）。`, "ご予約は、このLINEに", "①お名前　②ご希望の日と時間　③メニュー", "を送ってください。今日のご予約もLINEでどうぞ。");
     return lines.join("\n");
   }
   function setSimple(on) {
