@@ -103,8 +103,10 @@ python stickers/generate.py shuru     # 第5弾（STYLE で白黒・真顔に切
 
 ```bash
 pip install pillow numpy scipy
-python stickers/from_sheet.py stickers/source/mofuneko_sheet.webp mofuneko --drop 29,40 --main 2
+python stickers/fix_mofuneko_eye.py   # 「笑」の描き忘れた右目を補った版を作る
+python stickers/from_sheet.py stickers/source/mofuneko_sheet_fixed.png mofuneko --drop 29,40 --main 2
 ```
+- 元画像の33番「笑」は右目が描かれていなかったので、左目を反転して口をはさんだ対称の位置に描き足している（出力では32番）
 - 白い余白から格子を自動で切り分け、外周の白い背景を透明にする。毛が真っ白でも欠けないよう、輪郭のすき間をふさいでから内側を残している
 - `--drop 29,40`：元画像の29「お疲れさまです」（カップのロゴが実在チェーン店に似ていて商標リスク）と、40「また連絡するね！」（24「あとで連絡するね！」と重複）を外して40個にしている
 - タブ画像は文字を除いて猫だけにしている
