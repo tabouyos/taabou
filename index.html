@@ -44,6 +44,7 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body { background: var(--bg); background-image: radial-gradient(circle at 12% 0%, var(--accent-soft) 0, transparent 320px), radial-gradient(circle at 100% 8%, var(--glow) 0, transparent 280px); background-repeat: no-repeat; color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.6; padding-inline: 16px; padding-block: 0 48px; }
 .wrap { max-width: 720px; margin: 0 auto; display: grid; gap: 20px; }
 h1, h2, h3 { font-family: var(--f-display); font-weight: 700; text-wrap: balance; margin: 0; }
@@ -119,6 +120,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .chip input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
 .chip input:disabled + span { opacity: .45; cursor: not-allowed; }
 .chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chip.br-day input:checked + span { background: var(--s-day-bg); color: var(--s-day); border-color: var(--s-day); }
+.chip.br-night input:checked + span { background: var(--s-night-bg); color: var(--s-night); border-color: var(--s-night); }
+.chip.br-ake input:checked + span { background: var(--s-ake-bg); color: var(--s-ake); border-color: var(--s-ake); }
+.chip.br-off input:checked + span { background: var(--s-off-bg); color: var(--s-off); border-color: var(--s-off); }
+.chip.br-late input:checked + span { background: var(--s-late-bg); color: var(--s-late); border-color: var(--s-late); }
+.chip.br-clear input:checked + span { background: var(--surface); color: var(--danger); border-color: var(--danger); }
+.chip input:checked + span { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px currentColor; }
+.cell { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .cell .ng { font-size: .7rem; color: var(--danger); font-weight: 700; }
 .blk { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 8px 12px; border: 1px dashed var(--danger); border-radius: 10px; }
 .blk .when { font-variant-numeric: tabular-nums; font-weight: 700; }
@@ -183,9 +192,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
         <h2 id="monthLabel"></h2>
         <button class="btn ghost small" id="nextM" type="button" aria-label="次の月">次月 ›</button>
       </div>
+      <div class="f" style="display:grid;gap:6px">
+        <span class="muted" id="brushLabel">① 入れたい勤務を選ぶ → ② カレンダーの日付をタップ</span>
+        <div class="chips" id="brush" role="radiogroup" aria-labelledby="brushLabel"></div>
+      </div>
       <div class="cal" id="cal"></div>
+      <p class="muted" id="shiftSaveState" aria-live="polite"></p>
       <div class="legend" id="legend"></div>
-      <p class="muted">日付をタップすると 未入力 → 日勤 → 夜勤 → 明け → 休み → 遅番 の順に切り替わります。数字は予約件数です。</p>
+      <p class="muted">同じ勤務の日をもう一度タップすると消えます。「消す」を選んでタップしても消せます。数字は予約件数です。</p>
     </div>
 
     <form class="panel" id="blockForm" autocomplete="off">
@@ -428,11 +442,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
     $("storeInfo").textContent = "データはクラウドに保存されます（スマホ・PC共通）";
     try {
       const user = await window.claude.use("user");
-      if (user && !(await user.canEdit())) setReadOnly();
+      // Only hide the owner tools when the platform clearly says this viewer cannot write.
+      if (user && !(await user.isOwner()) && !(await user.canEdit()) && (await user.can("data.write")) === false) setReadOnly();
     } catch {}
     const onErr = () => {};
     db.doc("settings/main").onSnapshot((s) => { if (s.exists) { state.settings = normalizeSettings(s.data()); } renderAll(); }, onErr);
-    db.collection("shifts").onSnapshot((q) => { const next = {}; q.docs.forEach((d) => (next[d.id] = d.data())); state.shifts = next; renderAll(); }, onErr);
+    db.collection("shifts").onSnapshot((q) => {
+      const next = {};
+      q.docs.forEach((d) => (next[d.id] = d.data()));
+      for (const k of pendingMonths) if (state.shifts[k]) next[k] = state.shifts[k]; // まだ保存中の入力は消さない
+      state.shifts = next; renderAll();
+    }, onErr);
     db.collection("bookings").onSnapshot((q) => { state.bookings = q.docs.map((d) => d.data()); renderAll(); }, onErr);
     db.collection("blocks").onSnapshot((q) => { state.blocks = q.docs.map((d) => d.data()); renderAll(); }, onErr);
     db.doc("public/busy").onSnapshot((s) => { state.busy = s.exists ? (s.data().days || {}) : {}; renderAll(); }, onErr);
@@ -557,18 +577,35 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
     $("sampleNote").hidden = !Object.values(state.shifts).some((s) => s?.sample);
   }
   const monthTimers = {};
+  const pendingMonths = new Set();
+  let brush = "day";
+  function renderBrush() {
+    const opts = [...Object.entries(SHIFT).map(([k, v]) => [k, v.label]), ["clear", "消す"]];
+    $("brush").innerHTML = opts.map(([k, label]) =>
+      `<label class="chip br-${k}"><input type="radio" name="brush" id="brush-${k}" value="${k}" ${k === brush ? "checked" : ""}><span>${label}</span></label>`).join("");
+  }
+  $("brush").addEventListener("change", (e) => { if (e.target.name === "brush") brush = e.target.value; });
+  function setSaveState(text) { $("shiftSaveState").textContent = text; }
+  function queueMonthSave(key) {
+    pendingMonths.add(key);
+    setSaveState("保存中…");
+    clearTimeout(monthTimers[key]);
+    monthTimers[key] = setTimeout(async () => {
+      try { await store.saveMonth(key); setSaveState("保存しました ✓"); }
+      catch (err) { setSaveState(`保存できませんでした（${err?.code || "通信エラー"}）。電波の良い所でもう一度タップしてください。`); toast("シフトを保存できませんでした"); }
+      finally { pendingMonths.delete(key); }
+    }, 600);
+  }
   $("cal").addEventListener("click", (e) => {
     const c = e.target.closest(".cell[data-date]");
     if (!c || state.readOnly) return;
     const [y, m, d] = c.dataset.date.split("-"), key = `${y}-${m}`;
-    const month = (state.shifts[key] ||= { days: {} });
-    month.days = { ...(month.days || {}) };
+    const month = (state.shifts[key] = { ...(state.shifts[key] || {}), days: { ...(state.shifts[key]?.days || {}) } });
     delete month.sample;
-    const next = CYCLE[(CYCLE.indexOf(month.days[d] || "") + 1) % CYCLE.length];
+    const next = brush === "clear" || month.days[d] === brush ? "" : brush;
     if (next) month.days[d] = next; else delete month.days[d];
     renderAll();
-    clearTimeout(monthTimers[key]);
-    monthTimers[key] = setTimeout(() => store.saveMonth(key).catch(() => toast("シフトを保存できませんでした")), 700);
+    queueMonthSave(key);
   });
   $("prevM").onclick = () => { state.month = new Date(state.month.getFullYear(), state.month.getMonth() - 1, 1); renderCalendar(); };
   $("nextM").onclick = () => { state.month = new Date(state.month.getFullYear(), state.month.getMonth() + 1, 1); renderCalendar(); };
@@ -578,14 +615,18 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
     const touched = new Set();
     for (const { date, code } of found) {
       const [y, m, d] = date.split("-"), key = `${y}-${m}`;
-      const month = (state.shifts[key] ||= { days: {} });
-      if (!touched.has(key)) { month.days = { ...(month.days || {}) }; delete month.sample; }
-      month.days[d] = code;
+      // 保存済みの月はサーバーから届いた書き換え不可のデータなので、コピーしてから変更する
+      if (!touched.has(key)) { state.shifts[key] = { days: { ...(state.shifts[key]?.days || {}) } }; }
+      state.shifts[key].days[d] = code;
       touched.add(key);
     }
     const f = parseYmd(found[0].date); state.month = new Date(f.getFullYear(), f.getMonth(), 1);
     renderAll();
-    try { for (const k of touched) await store.saveMonth(k); } catch { toast("シフトを保存できませんでした"); }
+    touched.forEach((k) => pendingMonths.add(k));
+    setSaveState("保存中…");
+    try { for (const k of touched) await store.saveMonth(k); setSaveState("保存しました ✓"); }
+    catch (err) { setSaveState(`保存できませんでした（${err?.code || "通信エラー"}）`); toast("シフトを保存できませんでした"); }
+    finally { touched.forEach((k) => pendingMonths.delete(k)); }
     const counts = {}; found.forEach((x) => (counts[x.code] = (counts[x.code] || 0) + 1));
     $("parseResult").textContent = `${found.length}日分を反映しました（` + Object.entries(counts).map(([k, n]) => `${SHIFT[k].label}${n}`).join("・") + "）";
   });
@@ -718,6 +759,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   $("storeInfo").textContent = "データはこのブラウザに保存されます";
   store.loadLocal();
   try { const t = localStorage.getItem(LS_KEY + ":tab"); if (t && $("tab-" + t)) showTab(t); } catch {}
+  renderBrush();
   renderAll();
   connectDb();
   window.__esthe = { parseChat, freeStarts, state }; // for quick checks
