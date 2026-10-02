@@ -167,12 +167,17 @@ python stickers/from_sheet.py stickers/source/shiba_moeru_sheet.webp shiba_moeru
   - やるぞー！燃えてきた！熱い柴犬が全力で応援。燃え尽きた…も言える、毎日使える40種類。
   - Let's go! A fired-up Shiba cheers you on with full power, and admits when it's burnt out too. 40 everyday stickers.
 
-## アニメーションスタンプ（試作）
+## 燃えるシバイヌ（動く版・24個）
 ```bash
-python stickers/animate.py shiba_moeru 1:bounce 2:shake 21:squash 37:zoom
+python stickers/animate.py shiba_moeru 1:bounce 2:shake 3:nod 4:wiggle 5:bounce 6:nod 8:zoom 9:dash 11:wiggle 13:bounce 14:squash 17:shake 19:nod 20:nod 22:squash 25:squash 27:wiggle 28:dash 29:tremble 33:wiggle 34:zoom 36:tremble 38:bounce 39:beat
 ```
-- 静止画1枚を「はねる(bounce)・ぶるぶる(shake)・ゆらゆら(wiggle)・ぽよん(squash)・どーん(zoom)・ぺこり(nod)」で動かす簡易アニメ（APNG）
-- LINE規格：320x270以内、5〜20コマ、4秒以内、1MB以下。1セットは8・16・24個。12コマ×90ms×4ループで作り、256色に減色して1MB以下に収めている
+- 静止画40個から24個を選び、1枚の絵を動かす簡易アニメ（APNG）にしている
+  - 動き：bounce=はねる / shake=ぶるぶる / wiggle=ゆらゆら / squash=ぽよん / zoom=どーん / nod=ぺこり / dash=走る / tremble=ぷるぷる / beat=どきどき
+- LINE規格：320x270（メインは240x240のAPNG、タブは96x74のPNG）、5〜20コマ、ループ1〜4回、再生4秒以内、1ファイル300KB以下、1セット8・16・24個
+- 1周約1秒×3ループ（約3秒）。300KBに収まるまで「8コマ256色 → 8コマ128色 → 6コマ256色 …」の順に試し、全コマ共通の色で減色している
+- 文案：燃えるシバイヌ【動く】 ／ Fired-Up Shiba: Animated
+  - 動いて燃える！やるぞー・了解・ありがとう・燃え尽きた…熱い柴犬が全力で動く24種類。
+  - A fired-up Shiba that moves! Let's go, OK, thank you, burnt out... 24 animated stickers full of energy.
 
 ## 次の展開案（シリーズ化すると売上が伸びる）
 - 動くスタンプ版（単価が上がる）
