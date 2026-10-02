@@ -76,6 +76,17 @@ def split_row(a, nonwhite, y0, y1, ncols):
     ink = nonwhite[y0:y1]
     edges = row_cuts(ink.sum(axis=0), ncols)
     labels, n = ndimage.label(ink, structure=np.ones((3, 3)))
+    # 上のほう（セリフの行）では、近くに並んだ文字を1つのかたまりにまとめる。
+    # こうすると、境目で切れたセリフも丸ごと多く入っている側のコマに入る
+    top = int(ink.shape[0] * 0.32)
+    text_groups, _ = ndimage.label(ndimage.binary_dilation(ink[:top], structure=np.ones((3, 13))))
+    objs = ndimage.find_objects(labels)
+    for i, sl in enumerate(objs, 1):
+        if sl is not None and sl[0].stop <= top:
+            g = text_groups[sl][labels[sl] == i]
+            g = g[g > 0]
+            if len(g):
+                labels[labels == i] = n + int(g[0])
     cells = []
     for k in range(ncols):
         x0, x1 = edges[k], edges[k + 1]
@@ -95,6 +106,8 @@ def split_row(a, nonwhite, y0, y1, ncols):
         other = ink[:, bx0:bx1] & ~mask[:, bx0:bx1]
         # 白っぽい毛の内側は ink に入らないので、他人のかたまりの中だけ白で消す
         other = ndimage.binary_fill_holes(ndimage.binary_closing(other, structure=np.ones((5, 5))))
+        # 消した絵のまわりの薄いふち（色のにじみ）も残らないよう、少し広げて消す
+        other = ndimage.binary_dilation(other, structure=np.ones((5, 5))) & ~mask[:, bx0:bx1]
         crop[other] = 255
         cells.append(ImageOps.expand(Image.fromarray(crop.astype(np.uint8)), border=4, fill=(255, 255, 255)))
     return cells
@@ -133,11 +146,18 @@ def remove_background(cell, white_min=245, neutral=14, seal=4):
     dist = ndimage.distance_transform_edt(fg)
     alpha = np.clip(dist / 1.5, 0, 1)
 
-    # はぐれた小さな点（AI画像のゴミ）を消す
+    # はぐれた小さな点（AI画像のゴミ）と、コマの左右の端に残った隣のコマの細い切れ端を消す
     labels, n = ndimage.label(alpha > 0.5)
     if n > 1:
         sizes = ndimage.sum(alpha > 0.5, labels, range(1, n + 1))
-        alpha[np.isin(labels, [i + 1 for i, sz in enumerate(sizes) if sz < 25])] = 0
+        width = alpha.shape[1]
+        drop = []
+        for i, sl in enumerate(ndimage.find_objects(labels)):
+            w = sl[1].stop - sl[1].start
+            at_edge = sl[1].start <= pad + 6 or sl[1].stop >= width - pad - 6
+            if sizes[i] < 25 or (at_edge and (w <= 6 or sizes[i] < 60)):
+                drop.append(i + 1)
+        alpha[np.isin(labels, drop)] = 0
 
     rgba = np.dstack([a, (alpha * 255).astype(int)]).astype(np.uint8)
     im = Image.fromarray(rgba, "RGBA")

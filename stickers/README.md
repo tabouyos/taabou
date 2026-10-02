@@ -9,6 +9,7 @@
 | 第5弾 `shuru` | 真顔しろねこ シュール敬語 40個 | 申請準備中 |
 | 別シリーズ `mofuneko` | もふもふねこ 毎日のきもち 40個（持ち込みの一覧画像から作成） | 申請準備中 |
 | 別シリーズ `mofuneko_nega` | もふもふねこ そんな時もある 40個（ネガティブ表現・持ち込み画像から作成） | 申請準備中 |
+| 別シリーズ `mofuneko_aki` | もふもふねこ 秋だー！ 40個（秋・持ち込み画像から作成） | 申請準備中 |
 
 ![第1弾](output/keigo/preview.png)
 ![第2弾](output/kisetsu/preview.png)
@@ -17,6 +18,7 @@
 ![第5弾](output/shuru/preview.png)
 ![もふもふねこ](output/mofuneko/preview.png)
 ![もふもふねこ そんな時もある](output/mofuneko_nega/preview.png)
+![もふもふねこ 秋だー！](output/mofuneko_aki/preview.png)
 
 > `output/keigo/` は申請した時点の画像をそのまま残している。今の generate.py で作り直すと、腕が第2弾と同じ丸い手になる。
 
@@ -127,6 +129,17 @@ python stickers/from_sheet.py stickers/source/mofuneko_negative_sheet.webp mofun
   - タイトル（日本語）：もふもふねこ そんな時もある ／（英語）：Fluffy Kitty: It's Okay to Feel Down
   - 説明文（日本語）：もう無理…やる気ゼロ…そんな時もある！もふもふのねこが、ゆるいネガティブな気持ちをやさしく代弁する40種類。
   - 説明文（英語）：A fluffy kitty speaks for your low days: so tired, zero motivation, I'm done... and that's okay. 40 gentle stickers for every mood.
+
+## もふもふねこ 秋だー！
+```bash
+python stickers/from_sheet.py stickers/source/mofuneko_aki_sheet.webp mofuneko_aki --cols 8 --main 1
+```
+- コマの間に白い隙間がない所があるので `--cols 8`。セリフの行は近くの文字を1つにまとめてから振り分けるので、境目で切れたセリフ（「ゆっくり休んでね」など）も丸ごと1コマに入る
+- 隣のコマの絵を消すときは、まわりの色のにじみも消し、コマの端に残った細い切れ端も取り除いている
+- **販売ページ用の文案**
+  - タイトル（日本語）：もふもふねこ 秋だー！ ／（英語）：Fluffy Kitty: Cozy Autumn Days
+  - 説明文（日本語）：紅葉・どんぐり・お月見・ハロウィン。もふもふのねこが秋の気持ちを届けます。あいさつにも使える秋いっぱいの40種類。
+  - 説明文（英語）：Autumn leaves, acorns, moon viewing and Halloween. A fluffy kitty shares cozy autumn feelings in 40 stickers you can use every day.
 
 ## 次の展開案（シリーズ化すると売上が伸びる）
 - 動くスタンプ版（単価が上がる）
