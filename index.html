@@ -131,6 +131,23 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .cell .ng { font-size: .7rem; color: var(--danger); font-weight: 700; }
 .blk { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 8px 12px; border: 1px dashed var(--danger); border-radius: 10px; }
 .blk .when { font-variant-numeric: tabular-nums; font-weight: 700; }
+/* お客様向け かんたん表示：大きな文字・少ない情報 */
+.simple { display: grid; gap: 16px; font-size: 19px; line-height: 1.8; }
+.s-card { background: var(--surface); border: 2px solid var(--line-c); border-radius: 22px; padding: 20px; display: grid; gap: 10px; }
+.s-title { font-size: 1.5rem; color: var(--accent); }
+.s-title::before { display: none; }
+.s-lead { font-size: 1.05rem; }
+.s-howto { border-color: var(--line-green); }
+.s-howto h3 { font-size: 1.2rem; }
+.s-howto ol { margin: 0; padding-left: 1.6em; font-weight: 700; }
+.s-line-id { font-size: 1.6rem; font-weight: 700; letter-spacing: .06em; font-family: ui-monospace, monospace; user-select: all; background: var(--bg); border-radius: 12px; padding: 4px 14px; display: inline-block; }
+.s-day { display: grid; gap: 2px; padding-block: 12px; border-top: 2px dotted var(--line-c); }
+.s-day:first-child { border-top: 0; padding-top: 0; }
+.s-date { font-weight: 700; font-size: 1.15rem; }
+.s-time { font-size: 1.1rem; color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+body.is-simple header.top, body.is-simple nav.tabs, body.is-simple #sampleNote { display: none !important; }
+body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
+.simple:first-child, body.is-simple .simple { padding-top: 16px; }
 @media (max-width: 460px) { .bk { grid-template-columns: 54px 1fr auto; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -236,10 +253,34 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
       <h2>ご予約可能な日時</h2>
       <div class="today-card" id="todayCard"></div>
       <div id="pubList"></div>
-      <div class="row" id="pubCopyRow"><button class="btn ghost" id="copyPub" type="button">案内文をコピー</button><span class="muted">LINEやSNSにそのまま貼れる文章です</span></div>
+      <div class="row" id="pubCopyRow"><button class="btn ghost" id="copyPub" type="button">案内文をコピー</button><span class="muted">LINEにそのまま貼れる、年配の方にも読みやすい文章です</span></div>
       <textarea id="pubText" readonly hidden></textarea>
+      <div class="row" id="previewRow"><button class="btn" id="previewBtn" type="button">お客様の見え方を確認</button></div>
     </div>
   </section>
+
+  <!-- お客様向け かんたん表示 -->
+  <section id="simpleView" class="simple" hidden>
+    <div class="row" id="previewBackRow" style="padding-top:16px"><button class="btn" id="previewBack" type="button">← 管理画面にもどる</button><span class="muted">ここから下がお客様に見える画面です</span></div>
+    <div class="s-card">
+      <h2 class="s-title">ご予約できる日と時間</h2>
+      <p class="s-lead" id="sLead"></p>
+    </div>
+    <div class="s-card" id="sDays"></div>
+    <div class="s-card s-howto">
+      <h3>ご予約のしかた</h3>
+      <p>LINEで、つぎの3つを送ってください。</p>
+      <ol>
+        <li>お名前</li>
+        <li>ご希望の日と時間</li>
+        <li>メニュー</li>
+      </ol>
+      <p id="sMenu"></p>
+      <div id="sLine"></div>
+      <p>今日のご予約も、LINEでお気軽にどうぞ。</p>
+    </div>
+  </section>
+
 
   <!-- 設定 -->
   <section id="tab-settings" class="wrap" style="padding:0" hidden>
@@ -462,7 +503,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
     state.readOnly = true;
     document.querySelectorAll("#tabs button").forEach((b) => (b.hidden = b.dataset.tab !== "public"));
     $("pubCopyRow").hidden = true;
-    showTab("public");
+    setSimple(true);
   }
 
   // ---------- tabs ----------
@@ -698,13 +739,47 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
       return `<div class="pub-day"><div class="day-head">${md(date)}${w ? ` <span class="muted" style="font-weight:400">${toHm(w[0])}〜${toHm(w[1])}</span>` : ""}</div>${body}</div>`;
     }).join("");
   }
+  // ---------- お客様向けのやさしい表現 ----------
+  const jpTime = (m) => { const h = Math.floor(m / 60), mm = m % 60; return `${h < 12 ? "午前" : "午後"}${h <= 12 ? h : h - 12}時${mm === 0 ? "" : mm === 30 ? "半" : mm + "分"}`; };
+  const jpDate = (s) => { const d = parseYmd(s); return `${d.getMonth() + 1}月${d.getDate()}日（${DOW[d.getDay()]}）`; };
+  const jpDur = (m) => `${Math.floor(m / 60) ? Math.floor(m / 60) + "時間" : ""}${m % 60 === 30 && m >= 60 ? "半" : m % 60 ? (m % 60) + "分" : ""}`;
+  function timeRanges(times) {
+    const step = Number(state.settings.step) || 30, out = [];
+    for (const t of times) { const last = out[out.length - 1]; if (last && t - last[1] === step) last[1] = t; else out.push([t, t]); }
+    return out.map(([a, b]) => {
+      if (a === b) return `${jpTime(a)}から`;
+      const ta = jpTime(a), tb = jpTime(b);
+      return `${ta}〜${tb.slice(0, 2) === ta.slice(0, 2) ? tb.slice(2) : tb}のあいだ`;
+    });
+  }
+  const simpleDays = () => publicDays().filter((x) => x.w && x.times.length);
+  const menuSentence = () => `メニュー：${state.settings.items.join("・")}（${Number(state.settings.maxPick) || 2}つまで選べます）`;
+  function renderSimple() {
+    const end = publicEnd(), days = simpleDays();
+    $("sLead").textContent = `1回 ${jpDur(dur())}です。下の時間のあいだなら、お好きな時間に始められます。（${end.getMonth() + 1}月${end.getDate()}日まで）`;
+    $("sMenu").textContent = menuSentence();
+    const id = state.settings.lineId;
+    $("sLine").innerHTML = id ? `<div>LINE ID</div><span class="s-line-id">${esc(id)}</span>` : "";
+    $("sDays").innerHTML = days.length
+      ? days.map(({ date, times }) => `<div class="s-day"><div class="s-date">${jpDate(date)}</div>${timeRanges(times).map((r) => `<div class="s-time">${esc(r)}</div>`).join("")}</div>`).join("")
+      : `<p>いまご予約できる日がありません。<br>来月の分は、月末にお知らせします。</p>`;
+  }
   function publicText() {
-    const lines = [`【ご予約可能日時】${publicEnd().getMonth() + 1}/${publicEnd().getDate()}まで・1回${dur()}分`, `メニュー：${state.settings.items.join("・")}から${Number(state.settings.maxPick) || 2}つまで`, ""];
-    for (const { date, w, times } of publicDays()) if (w && times.length) lines.push(`${md(date)} ${times.map(toHm).join(" / ")}`);
-    if (lines.length === 3) lines.push("現在ご案内できる空きはありません");
-    lines.push("", "※当日のご予約は個人LINEへお願いします" + (state.settings.lineId ? `（ID：${state.settings.lineId}）` : ""));
+    const end = publicEnd(), days = simpleDays();
+    const lines = ["【エステ ご予約できる日】", `1回 ${jpDur(dur())}です（${end.getMonth() + 1}月${end.getDate()}日まで）`, menuSentence(), ""];
+    for (const { date, times } of days) { lines.push(`■ ${jpDate(date)}`); timeRanges(times).forEach((r) => lines.push(`　${r}`)); }
+    if (!days.length) lines.push("いまご予約できる日がありません。");
+    lines.push("", "上の時間のあいだなら、お好きな時間に始められます。", "ご予約は、このLINEに", "①お名前　②ご希望の日と時間　③メニュー", "を送ってください。今日のご予約もLINEでどうぞ。");
     return lines.join("\n");
   }
+  function setSimple(on) {
+    $("simpleView").hidden = !on;
+    document.body.classList.toggle("is-simple", on);
+    $("previewBackRow").hidden = state.readOnly;
+    if (on) { renderSimple(); scrollTo(0, 0); }
+  }
+  $("previewBtn").addEventListener("click", () => setSimple(true));
+  $("previewBack").addEventListener("click", () => { setSimple(false); showTab("public"); });
   async function copyText(text, fallbackEl) {
     try { await navigator.clipboard.writeText(text); toast("コピーしました"); }
     catch { if (fallbackEl) { fallbackEl.hidden = false; fallbackEl.value = text; fallbackEl.select(); } toast("自動コピーできませんでした。表示された文章を選択してコピーしてください"); }
@@ -746,6 +821,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
     renderCalendar();
     renderBlocks();
     renderPublic();
+    if (!$("simpleView").hidden) renderSimple();
     renderSettings();
   }
 
