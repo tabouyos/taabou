@@ -175,7 +175,7 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
       <h2>予約を登録</h2>
       <div class="row">
         <label class="f">お客様名<input id="bName" required placeholder="山田 花子"></label>
-        <label class="f">連絡先（LINE名・電話など）<input id="bContact" placeholder="LINE: はなこ"></label>
+        <label class="f">LINEの名前<input id="bContact" placeholder="はなこ"></label>
       </div>
       <div class="row">
         <label class="f">日付<input type="date" id="bDate" required></label>
@@ -187,7 +187,6 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
       <p class="muted" id="bDayInfo"></p>
       <div class="row">
         <label class="f">開始時間<select id="bTime"></select></label>
-        <label class="f">受付経路<select id="bVia"><option>個人LINE</option><option>電話</option><option>対面</option><option>その他</option></select></label>
       </div>
       <label class="f" style="flex-basis:100%"><span><input type="checkbox" id="bOverride" style="width:auto;vertical-align:middle"> 勤務外・時間外でも登録する</span></label>
       <label class="f">メモ（肌の状態・アレルギーなど）<textarea id="bNote" style="min-height:60px"></textarea></label>
@@ -568,8 +567,8 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
         ${items.map((b) => {
           const end = toHm(toMin(b.start) + Number(b.min));
           return `<div class="bk"><div class="t">${esc(b.start)}<div class="muted" style="font-weight:400">〜${end}</div></div>
-            <div class="who"><strong>${esc(b.name)}</strong> 様 <span class="muted">${esc(itemsText(b))}・${esc(b.via || "")}</span>
-            ${b.contact ? `<div class="muted">${esc(b.contact)}</div>` : ""}${b.note ? `<div class="muted">📝 ${esc(b.note)}</div>` : ""}</div>
+            <div class="who"><strong>${esc(b.name)}</strong> 様 <span class="muted">${esc(itemsText(b))}</span>
+            ${b.contact ? `<div class="muted">LINE：${esc(b.contact)}</div>` : ""}${b.note ? `<div class="muted">📝 ${esc(b.note)}</div>` : ""}</div>
             <button class="btn danger small" type="button" data-del="${esc(b.id)}">取消</button></div>`;
         }).join("")}</div>`;
     }).join("");
@@ -589,7 +588,7 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
     const items = [...$("bItems").querySelectorAll("input:checked")].map((i) => i.value), start = $("bTime").value, date = $("bDate").value;
     if (!items.length || !start || !date) { toast("日付・メニュー・開始時間を選んでください"); return; }
     const b = { id: uid(), date, start, items, min: dur(),
-      name: $("bName").value.trim(), contact: $("bContact").value.trim(), via: $("bVia").value, note: $("bNote").value.trim(), createdAt: new Date().toISOString() };
+      name: $("bName").value.trim(), contact: $("bContact").value.trim(), via: "LINE", note: $("bNote").value.trim(), createdAt: new Date().toISOString() };
     state.bookings = [...state.bookings, b];
     renderAll();
     try { await store.saveBooking(b); toast(`${md(date)} ${start} ${b.name}様を登録しました`); } catch { toast("保存できませんでした。通信を確認してもう一度お試しください"); }
