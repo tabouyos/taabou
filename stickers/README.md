@@ -11,6 +11,7 @@
 | 別シリーズ `mofuneko_nega` | もふもふねこ そんな時もある 40個（ネガティブ表現・持ち込み画像から作成） | 申請準備中 |
 | 別シリーズ `mofuneko_aki` | もふもふねこ 秋だー！ 40個（秋・持ち込み画像から作成） | 申請準備中 |
 | 別シリーズ `shiba_moeru` | 燃えるシバイヌ 40個（持ち込み画像48コマから40個を選んで作成） | 申請準備中 |
+| 別シリーズ `shiba_moetsuki` | 燃え尽きたシバイヌ 40個（持ち込み画像49コマから40個を選んで作成） | 申請準備中 |
 | 別シリーズ `mofuneko_fuyu` | もふもふねこ 冬だー！ 40個（冬・持ち込み画像48コマから40個を選んで作成） | 申請準備中 |
 
 ![第1弾](output/keigo/preview.png)
@@ -179,6 +180,17 @@ python stickers/animate.py shiba_moeru 1:bounce 2:shake 3:nod 4:wiggle 5:bounce 
 - 文案：燃えるシバイヌ【動く】 ／ Fired-Up Shiba: Animated
   - 動いて燃える！やるぞー・了解・ありがとう・燃え尽きた…熱い柴犬が全力で動く24種類。
   - A fired-up Shiba that moves! Let's go, OK, thank you, burnt out... 24 animated stickers full of energy.
+
+## 燃え尽きたシバイヌ
+```bash
+python stickers/from_sheet.py stickers/source/shiba_moetsuki_sheet.webp shiba_moetsuki --cols 7 --drop 2,4,13,17,22,23,31,37,38 --main 1
+```
+- 7列×7行=49コマから9個を外して40個：2「もう無理…」/ 4「やる気0…」/ 13「燃えカス…」（43と重複）/ 17「今はムリです」/
+  22「さむい…」・23「あたたまりたい…」（季節限定）/ 31「今はひとりにして…」（犬がほぼ見えない）/ 37「行きたくない…」（16と同じ構図）/ 38「布団が天国…」（8・9と重複）
+- 「そんな時もある！ネガティブ表現スタンプ」特集に合う
+- 文案：燃え尽きたシバイヌ ／ Burnt-Out Shiba
+  - 燃え尽きた…動けない…休ませて…。がんばりすぎた柴犬が、ゆるっとダラダラ気持ちを代弁。でもまたがんばる40種類。
+  - Burnt out... can't move... let me rest. A tired Shiba speaks for your lazy days, then tries again. 40 stickers.
 
 ## 次の展開案（シリーズ化すると売上が伸びる）
 - 動くスタンプ版（単価が上がる）
