@@ -5,10 +5,14 @@
 | 第1弾 `keigo` | 敬語しろねこ 40個 | 審査待ち（申請済み） |
 | 第2弾 `kisetsu` | 敬語しろねこ 季節のごあいさつ 40個（手がぷっくり丸い新デザイン） | 申請準備中 |
 | 第3弾 `deka` | しろねこのデカ文字 40個（40〜60代向け・普段使い） | 申請準備中 |
+| 第4弾 `fuwafuwa` | ふわふわしろねこ 全肯定 40個（癒し系） | 申請準備中 |
+| 第5弾 `shuru` | 真顔しろねこ シュール敬語 40個 | 申請準備中 |
 
 ![第1弾](output/keigo/preview.png)
 ![第2弾](output/kisetsu/preview.png)
 ![第3弾](output/deka/preview.png)
+![第4弾](output/fuwafuwa/preview.png)
+![第5弾](output/shuru/preview.png)
 
 > `output/keigo/` は申請した時点の画像をそのまま残している。今の generate.py で作り直すと、腕が第2弾と同じ丸い手になる。
 
@@ -47,14 +51,16 @@
 ## 作り直し方
 ```bash
 pip install cairosvg pillow
-# フォント（fonts/MPLUSRounded1c-ExtraBold.ttf, SIL OFL）をOSにインストールしておく
+# fonts/ のフォント（M PLUS Rounded 1c / Zen Maru Gothic / Zen Kaku Gothic New, すべて SIL OFL）をOSにインストールしておく
 python stickers/generate.py keigo     # 第1弾
 python stickers/generate.py kisetsu   # 第2弾
 python stickers/generate.py deka      # 第3弾（LAYOUT="deka" で文字を大きく配置）
+python stickers/generate.py fuwafuwa  # 第4弾（STYLE で毛並み・やわらかい線に切り替え）
+python stickers/generate.py shuru     # 第5弾（STYLE で白黒・真顔に切り替え）
 ```
 - セリフ・表情・ポーズを変えたいときは `sets/<セット名>.py` を編集する。新しいセットも同じ形でファイルを足せば作れる
 - 絵はすべてコード（SVG）で描いている。ただし描画プログラムとデザインはAI（Claude）が作ったので、LINEの申請では「AIを使用しています」を選ぶ
-- フォントのM PLUS Rounded 1cはSIL Open Font Licenseのため、商用スタンプに利用できる
+- フォントはすべてSIL Open Font Licenseのため、商用スタンプに利用できる
 
 ## 第2弾 販売ページ用の文案
 - **タイトル（日本語）**：ていねい敬語しろねこ 季節のごあいさつ
@@ -68,6 +74,25 @@ python stickers/generate.py deka      # 第3弾（LAYOUT="deka" で文字を大�
 - **説明文（日本語）**：大きな文字で読みやすい！リボンのしろねこが、家族や友だちとの毎日のやりとりにぴったりな40種類。了解・ありがとう・今から帰るなど。
 - **説明文（英語）**：Big, easy-to-read words with a chubby white cat. 40 everyday stickers for family and friends: OK, thank you, on my way home and more.
 - メイン画像は「了解！」のスタンプ（デカ文字だと一目で分かるように）
+
+## 第4弾・第5弾のリサーチ結果（2026年10月）
+- 「かわいい猫」「ゆるい犬」だけでは飽和していて埋もれる → 使う場面やテーマを絞って差別化する
+- 癒し系は「ふわふわ・ぽてっと・パステル」が安定して人気（シマエナガ・うさぎ・こぐま など）
+- シュール系は「白黒・無表情・脱力・シンプルな線」が人気。「シュールだけどおしゃれ」が求められている
+- シンプルなデザインが男女とも選ばれやすく、毎日使える定番の言葉が結局いちばん使われる
+- 人気キャラのシリーズ2弾・3弾は既存ファンが買ってくれる
+
+## 第4弾 販売ページ用の文案
+- **タイトル（日本語）**：ふわふわしろねこ 全肯定
+- **タイトル（英語）**：Fluffy White Cat: You're Doing Great
+- **説明文（日本語）**：もふもふのしろねこが、がんばるあなたをやさしく全肯定。おつかれさま・えらい・むりしないでね。毎日に癒しを届ける40種類です。
+- **説明文（英語）**：A fluffy white cat gently cheers you on: good job, you're amazing, take it easy. 40 soothing stickers for every day.
+
+## 第5弾 販売ページ用の文案
+- **タイトル（日本語）**：真顔しろねこ シュール敬語
+- **タイトル（英語）**：Deadpan White Cat: Polite and Surreal
+- **説明文（日本語）**：真顔のしろねこが、丁寧な敬語のままとけたり浮いたり食パンになったり。職場でも使えるシュールな40種類です。
+- **説明文（英語）**：A deadpan white cat speaks polite Japanese while melting, floating or turning into toast. 40 surreal stickers you can even use at work.
 
 ## 次の展開案（シリーズ化すると売上が伸びる）
 - 動くスタンプ版（単価が上がる）

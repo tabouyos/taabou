@@ -35,8 +35,35 @@ RIBBON = "#ff6f61"    # リボン（キャラの目印）
 SW = 5                # 線の太さ
 FONT = "Rounded Mplus 1c"
 
+FLUFFY = False        # True で毛並みのギザギザ輪郭（ふわふわ系）
+CHEEK_OP = 1.0        # ほっぺの濃さ（0 で無し）
+TEXT_LINE = LINE      # 文字のいちばん外側の線の色
+TEXT_WEIGHT = 800
+
 ST = f'stroke="{LINE}" stroke-width="{SW}" stroke-linejoin="round"'
 ROUND = 'stroke-linecap="round" stroke-linejoin="round" fill="none"'
+
+
+def apply_style(style):
+    """セットごとの絵柄（線の色・太さ・フォントなど）を切り替える"""
+    g = globals()
+    g.update(style)
+    g.setdefault("TEXT_LINE", g["LINE"])
+    if "TEXT_LINE" not in style:
+        g["TEXT_LINE"] = g["LINE"]
+    g["ST"] = f'stroke="{g["LINE"]}" stroke-width="{g["SW"]}" stroke-linejoin="round"'
+
+
+def fluffy_ellipse(cx, cy, rx, ry, n, bump):
+    """もこもこした毛並みの楕円（外側にふくらむ弧をつなぐ）"""
+    pts = [(cx + rx * math.cos(2 * math.pi * i / n), cy + ry * math.sin(2 * math.pi * i / n)) for i in range(n)]
+    d = f"M {pts[0][0]:.1f} {pts[0][1]:.1f}"
+    for i in range(n):
+        a = 2 * math.pi * (i + 0.5) / n
+        qx, qy = cx + (rx + bump) * math.cos(a), cy + (ry + bump) * math.sin(a)
+        x, y = pts[(i + 1) % n]
+        d += f" Q {qx:.1f} {qy:.1f} {x:.1f} {y:.1f}"
+    return d + " Z"
 
 
 def star_path(cx, cy, r_out, r_in, n=5, rot=-90):
@@ -57,6 +84,12 @@ def tail():
 
 
 def body():
+    if FLUFFY:
+        return (
+            f'<path d="{fluffy_ellipse(0, 50, 56, 40, 18, 7)}" fill="{FUR}" {ST}/>'
+            f'<ellipse cx="-28" cy="90" rx="18" ry="11" fill="{FUR}" {ST}/>'
+            f'<ellipse cx="28" cy="90" rx="18" ry="11" fill="{FUR}" {ST}/>'
+        )
     return (
         f'<ellipse cx="0" cy="50" rx="58" ry="42" fill="{FUR}" {ST}/>'
         f'<ellipse cx="-28" cy="90" rx="18" ry="11" fill="{FUR}" {ST}/>'
@@ -86,6 +119,11 @@ def ribbon():
 
 
 def head_shape():
+    if FLUFFY:
+        return (
+            f'<path d="{fluffy_ellipse(0, -30, 82, 64, 28, 7)}" fill="{FUR}" {ST}/>'
+            f'<path d="M -62 -80 Q -48 -92 -30 -93 Q -40 -80 -38 -70 Q -52 -72 -62 -80 Z" fill="{PATCH}"/>'
+        )
     return (
         f'<ellipse cx="0" cy="-30" rx="84" ry="66" fill="{FUR}" {ST}/>'
         f'<path d="M -62 -80 Q -48 -92 -30 -93 Q -40 -80 -38 -70 Q -52 -72 -62 -80 Z" fill="{PATCH}"/>'
@@ -120,6 +158,17 @@ def one_eye(kind, x, y, side):
                 f'<circle cx="{x}" cy="{y}" r="4" fill="{LINE}"/>')
     if kind == "flat":
         return f'<path d="M {x - 11} {y} L {x + 11} {y}" {s}/>'
+    if kind == "bead":  # つぶらな目（ふわふわ系）
+        return (f'<ellipse cx="{x}" cy="{y + 2}" rx="6" ry="7.5" fill="{LINE}"/>'
+                f'<circle cx="{x + 2}" cy="{y - 1}" r="2.2" fill="#fff"/>')
+    if kind == "tiny":  # 点の目（シュール系の真顔）
+        return f'<circle cx="{x}" cy="{y}" r="4.5" fill="{LINE}"/>'
+    if kind == "stare":  # 見開いた真顔
+        return (f'<circle cx="{x}" cy="{y}" r="13" fill="#fff" stroke="{LINE}" stroke-width="{SW - 1}"/>'
+                f'<circle cx="{x}" cy="{y}" r="3.5" fill="{LINE}"/>')
+    if kind == "half":  # 半目
+        return (f'<path d="M {x - 12} {y - 2} L {x + 12} {y - 2}" {s}/>'
+                f'<path d="M {x - 8} {y - 2} A 8 7 0 0 0 {x + 8} {y - 2} Z" fill="{LINE}"/>')
     raise ValueError(kind)
 
 
@@ -150,7 +199,9 @@ def mouth(kind):
 
 
 def cheeks(strong=False):
-    op = 0.85 if strong else 0.55
+    op = (0.85 if strong else 0.55) * (1 if strong else CHEEK_OP)
+    if op == 0:
+        return ""
     out = (f'<ellipse cx="-56" cy="-8" rx="15" ry="9" fill="{CHEEK}" opacity="{op}"/>'
            f'<ellipse cx="56" cy="-8" rx="15" ry="9" fill="{CHEEK}" opacity="{op}"/>')
     if strong:
@@ -298,6 +349,26 @@ def item(kind):
                     f'<path d="M 0 36 L 0 84" stroke="{LINE}" stroke-width="4"/>'
                     + "".join(f'<path d="M {x0} {y} L {x1} {y - 2}" stroke="#c9b27a" stroke-width="3" stroke-linecap="round"/>'
                               for x0, x1 in ((-36, -8), (8, 36)) for y in (48, 58, 68)))
+    if kind == "fish":
+        return "", (f'<path d="M -56 50 Q -20 18 30 40 L 56 24 L 50 50 L 56 76 L 30 60 Q -20 82 -56 50 Z" fill="#9ec9e8" {ST}/>'
+                    f'<circle cx="-36" cy="46" r="4" fill="{LINE}"/>'
+                    f'<path d="M -16 40 Q -10 50 -16 60" stroke="{LINE}" stroke-width="3" fill="none"/>')
+    if kind == "magnifier":  # 右手を上げたポーズ(wave)で持つ
+        return (f'<path d="M 72 -4 L 88 -32" stroke="#8d6e63" stroke-width="9" stroke-linecap="round"/>',
+                f'<circle cx="100" cy="-56" r="27" fill="#d6f0ff" fill-opacity=".75" stroke="{LINE}" stroke-width="{SW + 2}"/>'
+                '<path d="M 88 -66 Q 94 -74 104 -74" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round"/>')
+    if kind == "box":  # 段ボールに入っている
+        return "", (f'<path d="M -86 6 L 86 6 L 80 112 L -80 112 Z" fill="#d7a96b" {ST}/>'
+                    f'<path d="M -86 6 L -112 -14 L -60 -14 L -40 6 Z M 86 6 L 112 -14 L 60 -14 L 40 6 Z" fill="#e8c28e" {ST}/>'
+                    f'<path d="M -20 40 L 20 40" stroke="{LINE}" stroke-width="4" stroke-linecap="round"/>')
+    if kind == "bread":  # 食パンから顔を出す
+        crust = ("M -112 60 L -112 -50 Q -140 -140 -60 -146 Q 0 -168 60 -146 Q 140 -140 112 -50 L 112 60 Z")
+        inner = ("M -96 48 L -96 -48 Q -118 -124 -54 -128 Q 0 -148 54 -128 Q 118 -124 96 -48 L 96 48 Z")
+        return (f'<path d="{crust}" fill="#d68a3c" {ST}/><path d="{inner}" fill="#f8e2b8"/>', "")
+    if kind == "futon":  # 布団（rot=-90 などで寝かせて使う）
+        return "", (f'<rect x="-104" y="10" width="208" height="104" rx="22" fill="#9fc5ff" {ST}/>'
+                    '<path d="M -104 34 L 104 34" stroke="#fff" stroke-width="8"/>'
+                    + "".join(f'<circle cx="{x}" cy="{y}" r="6" fill="#fff" opacity=".8"/>' for x, y in ((-60, 70), (0, 86), (60, 66), (-20, 58), (40, 96))))
     if kind == "phone":
         return "", (f'<rect x="-24" y="18" width="48" height="76" rx="9" fill="#37474f" {ST}/>'
                     '<rect x="-17" y="28" width="34" height="52" rx="3" fill="#b3e5fc"/>'
@@ -445,6 +516,28 @@ def fx(kind):
     if kind == "xmas_star":
         return (f'<path d="{star_path(-112, -100, 22, 9)}" fill="#ffd54f" stroke="#f5a623" stroke-width="3" stroke-linejoin="round"/>'
                 f'<path d="{star_path(118, -60, 14, 6)}" fill="#ffd54f"/>')
+    if kind == "glow":  # 後光
+        return "".join(f'<path d="M 0 -20 L {165 * math.cos(a - 0.09):.0f} {-20 + 165 * math.sin(a - 0.09):.0f} '
+                       f'L {165 * math.cos(a + 0.09):.0f} {-20 + 165 * math.sin(a + 0.09):.0f} Z" fill="#ffe27a" opacity=".55"/>'
+                       for a in [i * math.pi / 8 for i in range(16)])
+    if kind == "clouds":
+        return "".join(f'<path d="{fluffy_ellipse(x, y, rx, ry, 9, 8)}" fill="#fff" stroke="#c9d6e8" stroke-width="4"/>'
+                       for x, y, rx, ry in ((-90, 120, 70, 22), (70, 128, 80, 22), (-10, 140, 70, 18)))
+    if kind == "battery":
+        return (f'<rect x="80" y="-128" width="54" height="28" rx="5" fill="#fff" stroke="{LINE}" stroke-width="4"/>'
+                f'<rect x="134" y="-120" width="6" height="12" rx="2" fill="{LINE}"/>'
+                '<rect x="85" y="-123" width="14" height="18" rx="2" fill="#ff5252"/>'
+                '<path d="M 112 -126 L 104 -112 L 112 -112 L 106 -100" stroke="#ffb300" stroke-width="4" fill="none" stroke-linejoin="round"/>')
+    if kind == "space":
+        return (f'<circle cx="-112" cy="-110" r="18" fill="#ffcc80" stroke="{LINE}" stroke-width="3"/>'
+                '<ellipse cx="-112" cy="-110" rx="30" ry="7" fill="none" stroke="#ff8a65" stroke-width="4" transform="rotate(-20 -112 -110)"/>'
+                + "".join(f'<path d="{star_path(x, y, r, r * 0.45)}" fill="#ffd54f"/>' for x, y, r in ((110, -120, 12), (130, -60, 8), (-130, -40, 7), (100, 30, 9), (-96, 40, 6))))
+    if kind == "spin":
+        return (f'<path d="M -120 -40 A 130 130 0 0 1 -40 -150" stroke="#bbb" stroke-width="6" {s}/>'
+                f'<path d="M 120 40 A 130 130 0 0 1 40 150" stroke="#bbb" stroke-width="6" {s}/>'
+                '<path d="M -52 -158 L -36 -150 L -50 -138 Z M 52 158 L 36 150 L 50 138 Z" fill="#bbb"/>')
+    if kind == "dots":  # 「…」
+        return "".join(f'<circle cx="{x}" cy="-118" r="6" fill="{LINE}"/>' for x in (86, 106, 126))
     if kind == "sunrise":
         return ('<path d="M -140 70 A 50 50 0 0 1 -40 70 Z" fill="#ff8a65" opacity=".9"/>'
                 + "".join(f'<path d="M {-90 + 58 * math.cos(a):.0f} {70 + 58 * math.sin(a):.0f} L {-90 + 72 * math.cos(a):.0f} {70 + 72 * math.sin(a):.0f}" stroke="#ffb74d" stroke-width="5" {s}/>'
@@ -464,8 +557,8 @@ def text_block(lines, color, y_center, max_w=344):
     for i, l in enumerate(lines):
         y = top + i * lh + size * 0.36
         attrs = (f'x="{W / 2}" y="{y:.1f}" text-anchor="middle" font-family="{FONT}" '
-                 f'font-weight="800" font-size="{size}"')
-        out += (f'<text {attrs} fill="{LINE}" stroke="{LINE}" stroke-width="{size * 0.34:.1f}" stroke-linejoin="round">{l}</text>'
+                 f'font-weight="{TEXT_WEIGHT}" font-size="{size}"')
+        out += (f'<text {attrs} fill="{TEXT_LINE}" stroke="{TEXT_LINE}" stroke-width="{size * 0.34:.1f}" stroke-linejoin="round">{l}</text>'
                 f'<text {attrs} fill="#fff" stroke="#fff" stroke-width="{size * 0.2:.1f}" stroke-linejoin="round">{l}</text>'
                 f'<text {attrs} fill="{color}">{l}</text>')
     return out, lh * len(lines)
@@ -473,7 +566,7 @@ def text_block(lines, color, y_center, max_w=344):
 
 # ---------------------------------------------------------------- 組み立て
 
-BACK_FX = {"circle", "sunrise"}   # 猫の後ろに描く効果
+BACK_FX = {"circle", "sunrise", "glow", "clouds"}   # 猫の後ろに描く効果
 
 
 def cat_svg(s):
@@ -489,8 +582,23 @@ def cat_svg(s):
     parts.append(accessory(s.get("wear", "")))
     parts.append(arms(s.get("arms", "down")))
     parts.append(front)
-    parts += [fx(f) for f in fxs if f not in BACK_FX]
-    return "".join(parts)
+    front_fx = "".join(fx(f) for f in fxs if f not in BACK_FX)  # 効果は回転・変形させない
+    cat = "".join(parts)
+
+    # 全体の変形: rot=回転, squash=縦につぶす(とける), lift=浮かせる
+    tf = f'translate(0 {-s.get("lift", 0)}) rotate({s.get("rot", 0)} 0 60)'
+    if s.get("squash"):
+        tf += f' translate(0 100) scale({1 + (1 - s["squash"]) * 0.6:.2f} {s["squash"]}) translate(0 -100)'
+    cat = f'<g transform="{tf}">{cat}</g>' + front_fx
+    if s.get("lift"):  # 浮いている影
+        cat = '<ellipse cx="0" cy="104" rx="60" ry="9" fill="#000" opacity=".15"/>' + cat
+    if s.get("puddle"):  # とけた水たまり
+        cat = f'<path d="{fluffy_ellipse(0, 98, 120, 20, 10, 6)}" fill="{FUR}" {ST}/>' + cat
+    if s.get("clones"):  # 分身（増えました）
+        n = s["clones"]
+        cat = "".join(f'<g transform="translate({(i - (n - 1) / 2) * 150:.0f} {abs(i - (n - 1) / 2) * 30:.0f}) scale(.8)">{cat}</g>'
+                      for i in range(n))
+    return cat
 
 
 def cat_image(s, px_per_unit=2):
@@ -618,6 +726,7 @@ def fit_with_margin(im, w, h, margin=10):
 
 def main(set_name):
     mod = importlib.import_module(f"sets.{set_name}")
+    apply_style(getattr(mod, "STYLE", {}))
     stickers = mod.STICKERS
     out = ROOT / "output" / set_name
     out.mkdir(parents=True, exist_ok=True)
