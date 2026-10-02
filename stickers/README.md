@@ -145,7 +145,8 @@ python stickers/from_sheet.py stickers/source/mofuneko_aki_sheet.webp mofuneko_a
 
 ## もふもふねこ 冬だー！
 ```bash
-python stickers/from_sheet.py stickers/source/mofuneko_fuyu_sheet.webp mofuneko_fuyu --cols 8 --drop 21,24,27,36,38,39,44,47 --main 1
+python stickers/fix_fuyu_eye.py   # 7「またね〜」の白目に見える左目を黒目に描き直した版を作る
+python stickers/from_sheet.py stickers/source/mofuneko_fuyu_sheet_fixed.png mofuneko_fuyu --cols 8 --drop 21,24,27,36,38,39,44,47 --main 1
 ```
 - 元画像は48コマなので、似ている8個を外して40個にしている
   - 21「楽しいね！」/ 24「ゆっくりしてね」（46と重複）/ 27「さむすぎる…」（9と重複）/ 36「いつもありがとう」/
