@@ -192,6 +192,15 @@ python stickers/from_sheet.py stickers/source/shiba_moetsuki_sheet.webp shiba_mo
   - 燃え尽きた…動けない…休ませて…。がんばりすぎた柴犬が、ゆるっとダラダラ気持ちを代弁。でもまたがんばる40種類。
   - Burnt out... can't move... let me rest. A tired Shiba speaks for your lazy days, then tries again. 40 stickers.
 
+## 燃え尽きたシバイヌ（動く版・24個）
+```bash
+python stickers/animate.py shiba_moetsuki 1:squash 2:tremble 4:tremble 5:wiggle 6:squash 8:shake 10:squash 11:wiggle 12:nod 13:nod 14:tremble 17:wiggle 19:squash 23:nod 25:shake 27:tremble 28:nod 29:wiggle 31:wiggle 32:bounce 33:beat 34:tremble 38:wiggle 40:beat
+```
+- ダラダラ感が出るよう、ぽよん（息をしているような動き）・ぷるぷる・ゆらゆらを中心にしている
+- 文案：燃え尽きたシバイヌ【動く】 ／ Burnt-Out Shiba: Animated
+  - 動く燃え尽き柴犬。ぐったり・ぷるぷる・ゆらゆら…がんばりすぎた気持ちを動きで代弁する24種類。
+  - A burnt-out Shiba that moves! Flopping, trembling and swaying to show how tired you are. 24 animated stickers.
+
 ## 次の展開案（シリーズ化すると売上が伸びる）
 - 動くスタンプ版（単価が上がる）
 - ナース・医療職版（職場ネタ、競合が少ない）
