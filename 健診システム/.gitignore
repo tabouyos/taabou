@@ -1,0 +1,20 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# エディタ
+.vscode/
+*.swp
+
+# Node（構文検証などで使う場合）
+node_modules/
+npm-debug.log*
+
+# 一時ファイル
+*.tmp
+*.bak
+~$*
+
+# ローカルの環境メモ（秘密情報を入れる場合はコミットしない）
+.env
+.env.local
