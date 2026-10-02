@@ -7,12 +7,14 @@
 | 第3弾 `deka` | しろねこのデカ文字 40個（40〜60代向け・普段使い） | 申請準備中 |
 | 第4弾 `fuwafuwa` | ふわふわしろねこ 全肯定 40個（癒し系） | 申請準備中 |
 | 第5弾 `shuru` | 真顔しろねこ シュール敬語 40個 | 申請準備中 |
+| 別シリーズ `mofuneko` | もふもふねこ 毎日のきもち 40個（持ち込みの一覧画像から作成） | 申請準備中 |
 
 ![第1弾](output/keigo/preview.png)
 ![第2弾](output/kisetsu/preview.png)
 ![第3弾](output/deka/preview.png)
 ![第4弾](output/fuwafuwa/preview.png)
 ![第5弾](output/shuru/preview.png)
+![もふもふねこ](output/mofuneko/preview.png)
 
 > `output/keigo/` は申請した時点の画像をそのまま残している。今の generate.py で作り直すと、腕が第2弾と同じ丸い手になる。
 
@@ -93,6 +95,22 @@ python stickers/generate.py shuru     # 第5弾（STYLE で白黒・真顔に切
 - **タイトル（英語）**：Deadpan White Cat: Polite and Surreal
 - **説明文（日本語）**：真顔のしろねこが、丁寧な敬語のままとけたり浮いたり食パンになったり。職場でも使えるシュールな40種類です。
 - **説明文（英語）**：A deadpan white cat speaks polite Japanese while melting, floating or turning into toast. 40 surreal stickers you can even use at work.
+
+## もふもふねこ（一覧画像から作るセット）
+1枚の一覧画像（白背景にスタンプが格子状に並んだもの）から、そのまま申請できる一式を作る。
+
+```bash
+pip install pillow numpy scipy
+python stickers/from_sheet.py stickers/source/mofuneko_sheet.webp mofuneko --drop 29,40 --main 2
+```
+- 白い余白から格子を自動で切り分け、外周の白い背景を透明にする。毛が真っ白でも欠けないよう、輪郭のすき間をふさいでから内側を残している
+- `--drop 29,40`：元画像の29「お疲れさまです」（カップのロゴが実在チェーン店に似ていて商標リスク）と、40「また連絡するね！」（24「あとで連絡するね！」と重複）を外して40個にしている
+- タブ画像は文字を除いて猫だけにしている
+- 元画像は1枚1254px（1コマ約190px）なので約1.8倍に拡大している。より大きい元画像があれば、同じコマンドでくっきり作り直せる
+- **販売ページ用の文案**
+  - タイトル（日本語）：もふもふねこ 毎日のきもち ／（英語）：Fluffy Kitty: Everyday Feelings
+  - 説明文（日本語）：もふもふのねこが毎日のきもちを届けます。ありがとう・了解・おつかれさま・大好きなど、家族や友だちと使いやすい40種類。
+  - 説明文（英語）：A super fluffy kitty shares everyday feelings: thank you, OK, good job, love you and more. 40 stickers for family and friends.
 
 ## 次の展開案（シリーズ化すると売上が伸びる）
 - 動くスタンプ版（単価が上がる）
