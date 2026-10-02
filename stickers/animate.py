@@ -4,7 +4,7 @@ LINE の規格（アニメーションスタンプ）:
     スタンプ画像  最大 320x270（縦横どちらかが 270 以上）/ 5〜20 フレーム / ループ 1〜4 回 /
                  再生時間 4 秒以内 / 1ファイル 300KB 以下 / 1セット 8・16・24 個
     メイン画像    240x240 の APNG / タブ画像 96x74 の PNG
-容量を抑えるため、1周約1秒を8コマ（入らなければ6・5コマ）で作り、全コマ共通の色で減色する。
+容量を抑えるため8コマ（入らなければ6・5コマ）で作り、全コマ共通の色で減色する。再生時間はちょうど3秒。
 動きは絵を描き直すのではなく、1枚の絵を「はねる・ゆれる・ぽよん」などで動かす簡易アニメ。
 
     python stickers/animate.py <セット名> 1:bounce 2:shake 21:squash ... [--main 1]
@@ -19,10 +19,22 @@ from PIL import Image
 
 ROOT = Path(__file__).parent
 W, H = 320, 270
-LOOPS, LOOP_MS = 3, 1000                # 1周 約1秒 を 3回ループ = 約3秒（4秒以内）
 MAX_BYTES = 300 * 1024
-# 300KB に収まるまで、なめらかさ（コマ数）→ 色数 の順に少しずつ落として試す
-TRIES = [(8, 256), (8, 128), (6, 256), (6, 128), (6, 64), (5, 64)]
+# (コマ数, 色数, 1コマのミリ秒, ループ回数)。LINE は再生時間が「ちょうど 1・2・3・4 秒」でないと
+# エラーになるので、コマ数 x ミリ秒 x ループ が 1000 の倍数になる組み合わせだけを使う。
+# 300KB に収まるまで、なめらかさ（コマ数）→ 色数 の順に少しずつ落として試す。
+TRIES = [
+    (8, 256, 125, 3),   # 1周1秒 x 3回 = 3秒
+    (8, 128, 125, 3),
+    (6, 256, 250, 2),   # 1周1.5秒 x 2回 = 3秒
+    (6, 128, 250, 2),
+    (5, 256, 200, 3),   # 1周1秒 x 3回 = 3秒
+    (5, 64, 200, 3),
+]
+for _nf, _c, _ms, _loops in TRIES:
+    _total = _nf * _ms * _loops
+    assert 5 <= _nf <= 20 and 1 <= _loops <= 4 and _total <= 4000 and _total % 1000 == 0
+
 
 MOTIONS = ("bounce", "shake", "wiggle", "squash", "zoom", "nod", "dash", "tremble", "beat")
 
@@ -68,7 +80,7 @@ def frame(src, t, motion, w, h):
     return canvas
 
 
-def encode(frames, out_path, colors, ms):
+def encode(frames, out_path, colors, ms, loops):
     """全コマ共通のパレットで減色して保存（色がコマごとにちらつかない）"""
     h = frames[0].height
     strip = Image.new("RGBA", (frames[0].width, h * len(frames)))
@@ -76,7 +88,7 @@ def encode(frames, out_path, colors, ms):
         strip.paste(f, (0, i * h))
     pal = strip.quantize(colors, method=Image.Quantize.FASTOCTREE)
     q = [pal.crop((0, i * h, f.width, (i + 1) * h)).convert("RGBA") for i, f in enumerate(frames)]
-    q[0].save(out_path, save_all=True, append_images=q[1:], duration=ms, loop=LOOPS,
+    q[0].save(out_path, save_all=True, append_images=q[1:], duration=ms, loop=loops,
               disposal=1, blend=0, optimize=True)
     return out_path.stat().st_size
 
@@ -89,11 +101,9 @@ def fit(src, w, h, margin):
 
 def make(src_path, out_path, motion, w=W, h=H, margin=20):
     src = fit(Image.open(src_path).convert("RGBA"), w, h, margin)   # 動く分の余白を残す
-    for nf, colors in TRIES:
-        ms = LOOP_MS // nf
-        assert 5 <= nf <= 20 and nf * ms * LOOPS <= 4000
+    for nf, colors, ms, loops in TRIES:
         frames = [frame(src, i / nf, motion, w, h) for i in range(nf)]
-        size = encode(frames, out_path, colors, ms)
+        size = encode(frames, out_path, colors, ms, loops)
         if size <= MAX_BYTES:
             return nf, colors, size
     raise SystemExit(f"{out_path.name} が300KBに収まりません（{size // 1024}KB）")
