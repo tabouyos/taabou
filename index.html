@@ -129,6 +129,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .chip input:checked + span { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px currentColor; }
 .cell { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .cell .ng { font-size: .7rem; color: var(--danger); font-weight: 700; }
+.paste-req { display: grid; gap: 6px; background: var(--accent-soft); border-radius: 16px; padding: 12px; }
 .blk { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 8px 12px; border: 1px dashed var(--danger); border-radius: 10px; }
 .blk .when { font-variant-numeric: tabular-nums; font-weight: 700; }
 /* お客様向け かんたん表示：大きな文字・少ない情報 */
@@ -183,6 +184,11 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
   <section id="tab-book" class="wrap" style="padding:0">
     <form class="panel" id="bookForm" autocomplete="off">
       <h2>予約を登録</h2>
+      <div class="paste-req">
+        <label class="f" for="reqPaste">LINEで届いた申し込みを貼り付けると、下が自動で埋まります</label>
+        <textarea id="reqPaste" style="min-height:70px" placeholder="「エステの予約をお願いします。日時：…」をそのまま貼り付け"></textarea>
+        <div class="row"><button class="btn ghost small" type="button" id="reqParse">読み取って入力</button><span class="muted" id="reqParseMsg"></span></div>
+      </div>
       <div class="row">
         <label class="f">お客様名<input id="bName" required placeholder="山田 花子"></label>
         <label class="f">LINEの名前<input id="bContact" placeholder="はなこ"></label>
@@ -262,9 +268,9 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
   <section id="tab-public" class="wrap" style="padding:0" hidden>
     <div class="panel" id="linkPanel">
       <h2>お客様用リンク</h2>
-      <p class="muted">このページのリンクを送ると、お客様はログインなしで空き時間を見られます（予約はLINEで受けます）。予約・シフト・NG日時を変えたら、下のボタンでお客様用の表示を新しくしてください。</p>
+      <p class="muted">このページのリンクを送ると、お客様はログインなしで空き時間を見られます（予約はLINEで受けます）。予約・勤務・NG日時・設定を変えると、数秒後にお客様用の表示も自動で新しくなります（そのとき画面が一度読み込み直されます）。</p>
       <p class="note" id="snapState"></p>
-      <div class="row"><button class="btn" id="publishSnap" type="button">お客様用リンクを更新</button></div>
+      <div class="row"><button class="btn" id="publishSnap" type="button">今すぐ更新</button></div>
     </div>
     <div class="panel">
       <h2>ご予約可能な日時</h2>
@@ -611,7 +617,7 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
     const id = btn.dataset.del;
     state.bookings = state.bookings.filter((b) => b.id !== id);
     renderAll();
-    try { await store.deleteBooking(id); toast("予約を取り消しました"); } catch { toast("取消を保存できませんでした。通信を確認してもう一度お試しください"); }
+    try { await store.deleteBooking(id); flash("予約を取り消しました"); autoPublish(); } catch { toast("取消を保存できませんでした。通信を確認してもう一度お試しください"); }
   });
   ["bDate", "bOverride"].forEach((id) => $(id).addEventListener("change", renderTimeOptions));
   $("bookForm").addEventListener("submit", async (e) => {
@@ -622,7 +628,8 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
       name: $("bName").value.trim(), contact: $("bContact").value.trim(), via: "LINE", note: $("bNote").value.trim(), createdAt: new Date().toISOString() };
     state.bookings = [...state.bookings, b];
     renderAll();
-    try { await store.saveBooking(b); toast(`${md(date)} ${start} ${b.name}様を登録しました`); } catch { toast("保存できませんでした。通信を確認してもう一度お試しください"); }
+    try { await store.saveBooking(b); flash(`${md(date)} ${start} ${b.name}様を登録しました`); autoPublish(); } catch { toast("保存できませんでした。通信を確認してもう一度お試しください"); }
+    $("reqPaste").value = ""; $("reqParseMsg").textContent = "";
     $("bName").value = ""; $("bContact").value = ""; $("bNote").value = ""; $("bOverride").checked = false;
     $("bItems").querySelectorAll("input").forEach((i) => (i.checked = false)); limitItems();
     renderTimeOptions();
@@ -664,7 +671,7 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
     setSaveState("保存中…");
     clearTimeout(monthTimers[key]);
     monthTimers[key] = setTimeout(async () => {
-      try { await store.saveMonth(key); setSaveState("保存しました ✓"); }
+      try { await store.saveMonth(key); setSaveState("保存しました ✓"); autoPublish(5000); }
       catch (err) { setSaveState(`保存できませんでした（${err?.code || "通信エラー"}）。電波の良い所でもう一度タップしてください。`); toast("シフトを保存できませんでした"); }
       finally { pendingMonths.delete(key); }
     }, 600);
@@ -697,7 +704,7 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
     renderAll();
     touched.forEach((k) => pendingMonths.add(k));
     setSaveState("保存中…");
-    try { for (const k of touched) await store.saveMonth(k); setSaveState("保存しました ✓"); }
+    try { for (const k of touched) await store.saveMonth(k); setSaveState("保存しました ✓"); autoPublish(); }
     catch (err) { setSaveState(`保存できませんでした（${err?.code || "通信エラー"}）`); toast("シフトを保存できませんでした"); }
     finally { touched.forEach((k) => pendingMonths.delete(k)); }
     const counts = {}; found.forEach((x) => (counts[x.code] = (counts[x.code] || 0) + 1));
@@ -722,7 +729,7 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
     const clash = state.bookings.filter((b) => b.date === date && (allDay || (toMin(b.start) < toMin(to) && toMin(b.start) + Number(b.min) > toMin(from))));
     state.blocks = [...state.blocks, k];
     renderAll();
-    try { await store.saveBlock(k); toast(`${md(date)} ${allDay ? "終日" : `${from}〜${to}`} をNGにしました` + (clash.length ? `（この時間に予約が${clash.length}件あります）` : "")); }
+    try { await store.saveBlock(k); autoPublish(); flash(`${md(date)} ${allDay ? "終日" : `${from}〜${to}`} をNGにしました` + (clash.length ? `（この時間に予約が${clash.length}件あります）` : "")); }
     catch { toast("保存できませんでした。通信を確認してもう一度お試しください"); }
     $("kMemo").value = "";
   });
@@ -732,7 +739,7 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
     const id = btn.dataset.unblock;
     state.blocks = state.blocks.filter((k) => k.id !== id);
     renderAll();
-    try { await store.deleteBlock(id); toast("NGを解除しました"); } catch { toast("解除を保存できませんでした"); }
+    try { await store.deleteBlock(id); flash("NGを解除しました"); autoPublish(); } catch { toast("解除を保存できませんでした"); }
   });
 
   // ---------- render: public view ----------
@@ -952,7 +959,54 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
       starts, items, maxPick: Number($("sMaxPick").value) || 2 };
     document.activeElement?.blur?.();
     renderAll();
-    try { await store.saveSettings(); toast("設定を保存しました"); } catch { toast("設定を保存できませんでした"); }
+    try { await store.saveSettings(); flash("設定を保存しました"); autoPublish(); } catch { toast("設定を保存できませんでした"); }
+  });
+
+  // ---------- 予約・勤務を変えたら、お客様用リンクも自動で更新 ----------
+  // 更新すると画面が読み込み直されるので、お知らせは読み込み後にも出す
+  function flash(msg) { toast(msg); try { sessionStorage.setItem(LS_KEY + ":flash", msg); setTimeout(() => sessionStorage.removeItem(LS_KEY + ":flash"), 8000); } catch {} }
+  let autoTimer = null;
+  function autoPublish(delay = 2500) {
+    if (!store.db || state.customer) return; // Claudeのページで、オーナーが使っているときだけ
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(async () => {
+      // 入力の途中なら、終わるまで待つ（読み込み直しで入力が消えないように）
+      if (document.activeElement?.matches?.("input:not([type=checkbox]):not([type=radio]), textarea, select")) { autoPublish(3000); return; }
+      if (sameSnap(SNAP, liveSnapshot())) return;
+      let art = null;
+      try { art = await window.claude.use("artifact"); } catch {}
+      if (!art) return;
+      $("snapState").textContent = "お客様用リンクを更新しています…";
+      try { await art.publish(buildPage({ ...liveSnapshot(), at: new Date().toISOString() })); }
+      catch (e) { if (e?.code !== "conflict") $("snapState").textContent = `お客様用リンクを自動で更新できませんでした（${e?.code || "通信エラー"}）。「今すぐ更新」を押してください。`; }
+    }, delay);
+  }
+
+  // ---------- LINEで届いた申し込みの文章を読み取る ----------
+  function parseRequest(text) {
+    const t = text.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/：/g, ":");
+    const m = t.match(/(\d{1,2})\s*[月\/]\s*(\d{1,2})\s*日?[^\d]*?(\d{1,2}):(\d{2})/);
+    const field = (label) => (t.match(new RegExp(label + "\\s*:\\s*(.+)")) || [])[1]?.trim() || "";
+    if (!m) return null;
+    const now = new Date(), month = Number(m[1]);
+    let year = now.getFullYear();
+    if (month < now.getMonth() + 1 - 6) year += 1;
+    const d = new Date(year, month - 1, Number(m[2]));
+    return { date: ymd(d), start: `${pad(Number(m[3]))}:${m[4]}`, name: field("お名前"), menu: field("メニュー"), note: field("ご要望") };
+  }
+  $("reqParse").addEventListener("click", () => {
+    const r = parseRequest($("reqPaste").value), msg = $("reqParseMsg");
+    if (!r) { msg.textContent = "日時が読み取れませんでした。「日時：10月5日（月） 18:00〜」の行が入っているか確認してください。"; return; }
+    $("bName").value = r.name;
+    $("bNote").value = r.note;
+    $("bOverride").checked = false;
+    $("bDate").value = r.date;
+    $("bItems").querySelectorAll("input").forEach((i) => (i.checked = r.menu.includes(i.value)));
+    limitItems();
+    renderTimeOptions();
+    const ok = [...$("bTime").options].some((o) => o.value === r.start);
+    if (ok) { $("bTime").value = r.start; msg.textContent = `${md(r.date)} ${r.start} ${r.name || ""}様の内容を入れました。確認して「登録する」を押してください。`; }
+    else msg.textContent = `${md(r.date)} ${r.start} はすでに埋まっているか、受付時間外です。お客様に別の時間をご案内してください。`;
   });
 
   function renderAll() {
@@ -979,6 +1033,7 @@ body.is-simple .wrap > section:not(#simpleView) { display: none !important; }
   try { const t = localStorage.getItem(LS_KEY + ":tab"); if (t && $("tab-" + t)) showTab(t); } catch {}
   renderBrush();
   renderAll();
+  try { const f = sessionStorage.getItem(LS_KEY + ":flash"); if (f) { sessionStorage.removeItem(LS_KEY + ":flash"); setTimeout(() => toast(f + "（お客様用リンクも更新しました）"), 1200); } } catch {}
   if (window.claude?.use) {
     // Claudeのページとして開かれた：まずお客様向けを出し、オーナーと分かったら管理画面に切り替える
     state.customer = true;
