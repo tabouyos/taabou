@@ -840,6 +840,10 @@ async function sbLoadAll() {
     var mRes = await SB.from('staff_memos').select('*');
     if (mRes.error) throw sbLoadErr('staff_memos', 'select *', mRes.error);
 
+    // diaries（健診センター日誌）— テーブル未作成でも全体を止めない（その場合はこの端末のみ保存）
+    var dyRes = await SB.from('diaries').select('*');
+    if (dyRes.error) sbLoadErr('diaries（許容・続行）', 'select *', dyRes.error);
+
     // companyColorMap を companies から構築
     companyColorMap = {};
     var companyNameMap = {};
@@ -1031,6 +1035,41 @@ async function sbLoadAll() {
 
     // staff_memos（共有メモ）— DBを正として置き換え（全PC共有）
     staffMemos = (mRes.data||[]).map(rowToMemo);
+
+    // diaries（健診センター日誌）— DBを正として全PC共有。DBに無い日はこの端末の日誌を送る
+    if (!dyRes.error) {
+      DIARY_SYNC_READY = true;
+      var _localDy = diaryData || {};
+      diaryData = {};
+      (dyRes.data||[]).forEach(function(row) {
+        var dd = (row.data && typeof row.data === 'object') ? row.data : safeJSON(row.data, null);
+        if (dd) diaryData[row.date] = dd;
+      });
+      var dyMig = [], dyKeep = {};
+      Object.keys(_localDy).forEach(function(d){
+        if (!_localDy[d]) return;
+        if (!diaryData[d]) {
+          diaryData[d] = _localDy[d];
+          dyMig.push({date:d, data:_localDy[d], updated_by:(CURRENT_STAFF||''), updated_at:nowStr()});
+        } else if (!migDone('diary_v1') && JSON.stringify(diaryData[d]) !== JSON.stringify(_localDy[d])) {
+          dyKeep[d] = _localDy[d];  // 同じ日に別PCの日誌があった場合、この端末の版を控えとして残す
+        }
+      });
+      if (Object.keys(dyKeep).length > 0) {
+        try { localStorage.setItem('kenshin_diary_backup_v1', JSON.stringify(dyKeep)); } catch(e) {}
+        console.warn('[SB] diaries 同日の別版をこの端末に控えとして保存', Object.keys(dyKeep));
+      }
+      setMigDone('diary_v1');
+      if (dyMig.length > 0) {
+        SB.from('diaries').upsert(dyMig, {onConflict:'date'}).then(function(res){
+          if (res.error) console.error('[SB] diaries 移行', res.error);
+          else console.log('[SB] diaries ローカルから'+dyMig.length+'件移行');
+        });
+      }
+      saveLocal();
+    } else {
+      DIARY_SYNC_READY = false;
+    }
 
     setSyncBadge('ok', syncIdleLabel());
     return true;
@@ -1941,6 +1980,15 @@ async function sbUpsertWorklist(date, wl) {
   else           { setSyncBadge('ok', syncIdleLabel()); }
 }
 
+/* ─── DB: diaries（健診センター日誌）─── */
+async function sbUpsertDiary(date, diary) {
+  if (!SB_READY || !DIARY_SYNC_READY) return;
+  setSyncBadge('loading', '保存中...');
+  var res = await SB.from('diaries').upsert({date:date, data:diary, updated_by:(CURRENT_STAFF||''), updated_at:nowStr()}, {onConflict:'date'});
+  if (res.error) { setSyncBadge('error', '保存エラー'); console.error('[SB] diaries upsert', res.error); }
+  else           { setSyncBadge('ok', syncIdleLabel()); }
+}
+
 /* ─── DB: 共有メモ staff_memos ─── */
 function memoToRow(m) {
   return {
@@ -2274,6 +2322,20 @@ function sbStartRealtime() {
         setSyncBadge('warn', '他端末がこの日の業務表を更新しました（保存で上書き／再選択で反映）');
       }
     });
+    // diaries（健診センター日誌）の変更を受信
+  rtSub('diaries', function(payload) {
+      var affDate = (payload.new || payload.old || {}).date;
+      if (!affDate) return;
+      if (payload.eventType === 'DELETE') delete diaryData[affDate];
+      else if (payload.new) {
+        var dd = (payload.new.data && typeof payload.new.data === 'object') ? payload.new.data : safeJSON(payload.new.data, null);
+        if (dd) diaryData[affDate] = dd;
+      }
+      saveLocal();
+      // 編集中フォームの入力を消さないよう、別日付/別タブのときのみ再描画
+      if (!(currentTab === 'diary' && affDate === selectedDate)) renderCurrentTab();
+      else setSyncBadge('warn', '他端末がこの日の日誌を更新しました（保存で上書き／再選択で反映）');
+    });
     // staff_memos（共有メモ）の変更を受信
   rtSub('staff_memos', function(payload) {
       if (payload.eventType === 'DELETE') {
@@ -2447,6 +2509,7 @@ function hasTypeLimitOverride(date) {
 }
 var worklistData = {};  // 当日業務表の手入力データ（日付キー）
 var diaryData = {};     // 看護日誌データ（日付キー）
+var DIARY_SYNC_READY = false;  // diaries テーブルがあれば全PC共有
 var staffMemos = [];    // スタッフ共有メモ（配列、各メモは削除期限付き）
 
 // ─── ローカル保存（この端末のみ）──────────────────
@@ -6994,6 +7057,7 @@ function saveDiary() {
   diary.updatedAt = nowStr();
   diaryData[date] = diary;
   saveLocal();
+  sbUpsertDiary(date, diary);
   renderDiary();
   setSyncBadge('ok', '✓ 健診センター日誌を保存しました');
 }
@@ -7113,6 +7177,7 @@ function saveDiaryQuiet() {
   diary.updatedAt = nowStr();
   diaryData[date] = diary;
   saveLocal();
+  sbUpsertDiary(date, diary);
 }
 
 // ═══════════════════════════════════════════
