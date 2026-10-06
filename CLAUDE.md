@@ -60,3 +60,5 @@ python3 月ノルマ/check_totals.py 月ノルマ/<ファイル名>.xlsx
 - 編集は外科的に、テンプレートリテラル禁止(シングルクォート+連結)。変更後は `<script>` を抽出して `node --check` で構文検証
 - マイグレーションSQL `kenshin-migration-add-columns.sql`、スタッフ向け `健診センターシステム_使用書.html` も同フォルダ。機能を変えたら使用書も合わせて更新する
 - 公開方法は保留(2026/10)。全テーブルが anon で全操作可のため、URL を知れば誰でも患者データを読み書きできる公開は不可。システムの変更が落ち着いたら、パスワード保護付きの公開(または各PCへの手配布)を設定する予定
+- Supabase同期(2026/10/6〜):ステップ1(列追加 `kenshin-migration-step1-columns.sql`)は実行済み。残り=全PCを修正版v16(端末内記録の1回移行入り)へ入れ替え → ステップ2(`kenshin-migration-step2-tables.sql`、karte_prep・pass_station_overrides作成)→ 各PCで1回起動。ステップ2を入れ替え前に流すと旧版PCの端末内記録が消えるので順番厳守
+- 健診センター日誌はSupabaseにテーブルがなく各PCのみ保存。共有するかは本人の判断待ち
