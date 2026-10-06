@@ -686,7 +686,7 @@ async function sbLoadAll() {
     if (ssRes.error) sbLoadErr('shift_settings（許容・続行）', 'select *', ssRes.error);
 
     // patients（受診者マスタ）— テーブル未作成でも全体を止めない
-    var ptRes = await SB.from('patients').select('*');
+    var ptRes = await sbSelectAll('patients', 'karte_number');
     if (ptRes.error) {
       PATIENTS_SYNC_READY = false;
       sbLoadErr('patients（許容・続行）', 'select *', ptRes.error);
@@ -1084,6 +1084,18 @@ async function sbLoadAll() {
   }
 }
 
+/* 1000件を超えるテーブルも全件読む（Supabaseは1回の取得が最大1000件のため分割して取得） */
+async function sbSelectAll(table, orderCol) {
+  var all = [], size = 1000;
+  for (var from = 0; ; from += size) {
+    var res = await SB.from(table).select('*').order(orderCol).range(from, from + size - 1);
+    if (res.error) return res;
+    all = all.concat(res.data || []);
+    if (!res.data || res.data.length < size) break;
+  }
+  return {data: all, error: null};
+}
+
 /* ─── DB: 予約 upsert ─── */
 function sbErrText(e) {
   if (!e) return '不明なエラー';
@@ -1225,9 +1237,9 @@ function copyPrevMemo(i) {
 var CSV_IMPORT = null;   // {headers, rows, mapping, encoding, stats}
 
 var CSV_FIELD_DEFS = [
-  {key:'karte_number', label:'カルテ番号（受診者番号）', required:true,  hints:['受診者番号','カルテ番号','受診者ID','患者番号']},
-  {key:'name',         label:'氏名',                     required:false, hints:['名前２','名前2','氏名','漢字氏名','患者氏名']},
-  {key:'kana',         label:'カナ',                     required:false, hints:['名前１','名前1','カナ','フリガナ','ふりがな','カナ氏名']},
+  {key:'karte_number', label:'カルテ番号（受診者番号）', required:true,  hints:['受診者番号','カルテ番号','カルテNo','カルテNO','カルテＮｏ','カルテ№','カルテ No','受診者ID','患者番号','患者ID','患者No','患者NO','患者コード']},
+  {key:'name',         label:'氏名',                     required:false, hints:['名前２','名前2','漢字氏名','患者氏名','患者名','氏名']},
+  {key:'kana',         label:'カナ',                     required:false, hints:['名前１','名前1','カナ氏名','患者カナ','カナ','フリガナ','ふりがな']},
   {key:'birth',        label:'生年月日',                 required:false, hints:['生年月日','生年月日(西暦)','誕生日']},
   {key:'gender',       label:'性別',                     required:false, hints:['受診者性別','性別']},
   {key:'phone',        label:'電話番号',                 required:false, hints:['電話番号','TEL','電話']},
@@ -1297,7 +1309,22 @@ function guessMapping(headers) {
 function csvNorm(key, v) {
   var s = String(v == null ? '' : v).trim();
   if (!s) return '';
+  if (key === 'karte_number') {
+    // 全角数字・全角英字を半角に（医事システムの出力対策）
+    return s.replace(/[０-９Ａ-Ｚａ-ｚ]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+  }
   if (key === 'birth' || key === 'exam_date') {
+    s = s.replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+    // 和暦（S40.4.3 / 昭和40年4月3日 / H1/1/8 など）→ 西暦
+    var wm = s.match(/^(明治|大正|昭和|平成|令和|[MTSHRmtshr])\s*(\d{1,2}|元)[\.\/\-年](\d{1,2})[\.\/\-月](\d{1,2})/);
+    if (wm) {
+      var base = {'明治':1867,'M':1867,'大正':1911,'T':1911,'昭和':1925,'S':1925,'平成':1988,'H':1988,'令和':2018,'R':2018}[wm[1].length === 1 ? wm[1].toUpperCase() : wm[1]];
+      var wy = base + (wm[2] === '元' ? 1 : parseInt(wm[2], 10));
+      return wy + '-' + ('0' + wm[3]).slice(-2) + '-' + ('0' + wm[4]).slice(-2);
+    }
+    // 西暦の区切りあり（1965/4/3 / 1965-04-03 / 1965年4月3日）
+    var sm = s.match(/^(\d{4})[\.\/\-年](\d{1,2})[\.\/\-月](\d{1,2})/);
+    if (sm) return sm[1] + '-' + ('0' + sm[2]).slice(-2) + '-' + ('0' + sm[3]).slice(-2);
     var d = s.replace(/[^0-9]/g, '');
     if (d.length === 8) return d.slice(0,4) + '-' + d.slice(4,6) + '-' + d.slice(6,8);
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
@@ -1319,7 +1346,7 @@ function openCsvModal() {
     + '<div class="md" style="width:min(980px,96vw);">'
     + '<div class="md-head"><span>📥 受診者マスタ CSV取込</span><button class="btn" onclick="closeModal(\'csv-modal\')" style="padding:2px 8px;">✕</button></div>'
     + '<div class="md-body" id="csv-body">'
-    + '<div class="locker-box">健診システムから出力した受診者CSVを読み込みます。<br>'
+    + '<div class="locker-box">健診システムや医事課のシステムから出力した受診者（患者）CSVを読み込みます。Excelの場合は「CSV形式で保存」してから選んでください。<br>'
     + '選んだだけでは登録されません。内容を確認してから「取り込む」を押してください。</div>'
     + '<div class="fr"><label>CSVファイル</label>'
     + '<input type="file" id="csv-file" accept=".csv,text/csv" onchange="onCsvFile(this)" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;"/></div>'
