@@ -1239,7 +1239,7 @@ var CSV_IMPORT = null;   // {headers, rows, mapping, encoding, stats}
 var CSV_FIELD_DEFS = [
   {key:'karte_number', label:'カルテ番号（受診者番号）', required:true,  hints:['受診者番号','カルテ番号','カルテNo','カルテNO','カルテＮｏ','カルテ№','カルテ No','受診者ID','患者番号','患者ID','患者No','患者NO','患者コード']},
   {key:'name',         label:'氏名',                     required:false, hints:['名前２','名前2','漢字氏名','患者氏名','患者名','氏名']},
-  {key:'kana',         label:'カナ',                     required:false, hints:['名前１','名前1','カナ氏名','患者カナ','カナ','フリガナ','ふりがな']},
+  {key:'kana',         label:'カナ',                     required:false, hints:['名前１','名前1','カナ氏名','かな氏名','患者カナ','カナ','フリガナ','ふりがな']},
   {key:'birth',        label:'生年月日',                 required:false, hints:['生年月日','生年月日(西暦)','誕生日']},
   {key:'gender',       label:'性別',                     required:false, hints:['受診者性別','性別']},
   {key:'phone',        label:'電話番号',                 required:false, hints:['電話番号','TEL','電話']},
@@ -1309,6 +1309,10 @@ function guessMapping(headers) {
 function csvNorm(key, v) {
   var s = String(v == null ? '' : v).trim();
   if (!s) return '';
+  if (key === 'kana') {
+    // ひらがな → カタカナ（電子カルテの「かな氏名」対策）
+    return s.replace(/[\u3041-\u3096]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) + 0x60); });
+  }
   if (key === 'karte_number') {
     // 全角数字・全角英字を半角に（医事システムの出力対策）
     return s.replace(/[０-９Ａ-Ｚａ-ｚ]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
