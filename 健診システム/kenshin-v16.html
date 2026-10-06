@@ -1585,7 +1585,7 @@ var TRACK_FIELDS = [
   {k:'hasDaicho',       label:'大腸F',         fmt:hBool},
   {k:'seisushi',        label:'誠寿司',        fmt:function(v){return v==='yes'?'あり':v==='unknown'?'未確認':'なし';}},
   {k:'sushiMealType',   label:'誠寿司区分'},
-  {k:'karte',           label:'事前書類',      fmt:function(v){return v==='prepared'?'準備済み':v==='sent'?'発送済み':v==='unnecessary'?'不要':'未準備';}},
+  {k:'karte',           label:'事前送付',      fmt:function(v){return v==='prepared'?'準備済み':v==='sent'?'発送済み':v==='unnecessary'?'不要':'未準備';}},
   {k:'memo',            label:'メモ',          fmt:hShort},
   {k:'akibaRequired',   label:'秋葉医院',      fmt:hBool},
   {k:'akibaTimeSlot',   label:'秋葉AM表記',    fmt:function(v){return v==='am'?'AM':'（空欄）';}},
@@ -2327,7 +2327,7 @@ function bulkHassou(date) {
   if (hs.total === 0) { alert('この日に発送対象の予約がありません。'); return; }
   var setSent = !(hs.sent === hs.total); // 全部発送済でなければ一括発送済、全部済なら一括で戻す
   var msg = setSent
-    ? ('この日の事前書類 ' + hs.total + '件をすべて「発送済」にします。よろしいですか？（「不要」は対象外）')
+    ? ('この日の事前送付 ' + hs.total + '件をすべて「発送済」にします。よろしいですか？（「不要」は対象外）')
     : ('この日の「発送済」' + hs.sent + '件をすべて未発送（未準備）に戻します。よろしいですか？');
   if (!confirm(msg)) return;
   reservations.forEach(function(r, i){
@@ -3137,7 +3137,7 @@ function renderCalendar() {
       + ((dow!==0 && (sl.amTotal>0||sl.pmTotal>0))
           ? (function(){ var hs=hassouStatus(ds); if(hs.total<=0) return '';
               var allSent = hs.sent===hs.total;
-              return '<div onclick="event.stopPropagation();bulkHassou(\''+ds+'\')" title="クリックで事前問診を一括発送済／解除（'+hs.sent+'/'+hs.total+'）" style="margin-top:3px;cursor:pointer;border-radius:5px;padding:2px 5px;font-size:10.5px;font-weight:700;text-align:center;line-height:1.3;'
+              return '<div onclick="event.stopPropagation();bulkHassou(\''+ds+'\')" title="クリックで事前送付を一括発送済／解除（'+hs.sent+'/'+hs.total+'）" style="margin-top:3px;cursor:pointer;border-radius:5px;padding:2px 5px;font-size:10.5px;font-weight:700;text-align:center;line-height:1.3;'
                 + (allSent ? 'background:#E0F2FE;color:#075985;border:1px solid #7DD3FC;">📮 発送済'
                            : hs.sent>0 ? 'background:#F0F9FF;color:#0369A1;border:1px solid #BAE6FD;">📮 発送 '+hs.sent+'/'+hs.total
                            : 'background:#F8FAFC;color:#64748b;border:1px dashed #CBD5E1;">📮 未発送')
@@ -3160,7 +3160,7 @@ function renderCalendar() {
     + '<div class="leg-it"><span class="cal-full-tag">満胃カメ午前</span>検査が満枠</div>'
     + '<div class="leg-it"><span class="cal-near-tag">胃カメ午前</span>80%超</div>'
     + '<div class="leg-it"><span class="cal-over-tag">超過ドック</span>上限超過</div>'
-    + '<div class="leg-it">🔒ロッカー変更</div><div class="leg-it">⚡検査枠変更</div><div class="leg-it">📊種別枠変更</div><div class="leg-it">🏢企業予約</div><div class="leg-it">🍣誠寿司</div><div class="leg-it"><span style="background:#F3E8FF;color:#7E22CE;border-radius:4px;padding:0 3px;font-size:10px;">💆休</span> マッサージ休み</div><div class="leg-it"><span style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;border-radius:4px;padding:0 3px;font-size:10px;">🩺 休 医師名</span> ドクター休み</div><div class="leg-it"><span style="background:#DCFCE7;color:#166534;border-radius:4px;padding:0 3px;font-size:10px;">✅カルテ済</span> / <span style="background:#FFF7ED;color:#C2410C;border-radius:4px;padding:0 3px;font-size:10px;">📋カルテ未</span>（クリックで切替）</div><div class="leg-it"><span style="background:#E0F2FE;color:#075985;border:1px solid #7DD3FC;border-radius:4px;padding:0 3px;font-size:10px;">📮 発送済</span> 事前問診の発送</div>'
+    + '<div class="leg-it">🔒ロッカー変更</div><div class="leg-it">⚡検査枠変更</div><div class="leg-it">📊種別枠変更</div><div class="leg-it">🏢企業予約</div><div class="leg-it">🍣誠寿司</div><div class="leg-it"><span style="background:#F3E8FF;color:#7E22CE;border-radius:4px;padding:0 3px;font-size:10px;">💆休</span> マッサージ休み</div><div class="leg-it"><span style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;border-radius:4px;padding:0 3px;font-size:10px;">🩺 休 医師名</span> ドクター休み</div><div class="leg-it"><span style="background:#DCFCE7;color:#166534;border-radius:4px;padding:0 3px;font-size:10px;">✅カルテ済</span> / <span style="background:#FFF7ED;color:#C2410C;border-radius:4px;padding:0 3px;font-size:10px;">📋カルテ未</span>（クリックで切替）</div><div class="leg-it"><span style="background:#E0F2FE;color:#075985;border:1px solid #7DD3FC;border-radius:4px;padding:0 3px;font-size:10px;">📮 発送済</span> 事前送付</div>'
     + '</div></div>'
     + '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:10px 14px;font-size:13px;color:#1D4ED8;margin-bottom:10px;">'
     + '選択中: <strong>'+selectedDate+'</strong>'+(isNY?'<span class="ny-badge">'+y+'年</span>':'')+'<span style="font-size:11px;color:#64748b;margin-left:8px;">💡 日付をダブルクリックで日別予約へ</span>'
@@ -3172,7 +3172,7 @@ function renderCalendar() {
     + (isKartePrepDone(selectedDate) ? '#86EFAC;background:#DCFCE7;color:#166534;">✅ カルテ準備 済（クリックで未に戻す）' : '#FDBA74;background:#FFF7ED;color:#C2410C;">📋 カルテ準備を「済」にする')
     + (isKartePrepDone(selectedDate)&&kartePrepDone[selectedDate].by ? '<span style="font-size:11px;font-weight:400;margin-left:6px;">'+esc(kartePrepDone[selectedDate].by)+' '+esc(kartePrepDone[selectedDate].at||'')+'</span>' : '')
     + '</button>'
-    + '<button onclick="bulkHassou(\''+selectedDate+'\')" style="width:100%;padding:10px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px;border:1px solid #7DD3FC;background:#E0F2FE;color:#075985;">📮 事前問診を一括で発送済にする（もう一度で解除）</button>'
+    + '<button onclick="bulkHassou(\''+selectedDate+'\')" style="width:100%;padding:10px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px;border:1px solid #7DD3FC;background:#E0F2FE;color:#075985;">📮 事前送付を一括で発送済にする（もう一度で解除）</button>'
     + '<div style="font-size:11px;color:#64748b;margin-bottom:6px;">↑ 選択中の日（'+selectedDate+'）に対して設定します。設定するとこのカレンダーにマークが表示されます。</div>'
     + '<button class="btn btn-primary" style="width:100%;padding:10px;" onclick="goToDayView()">📋 '+selectedDate+' の予約一覧を見る</button>';
 }
@@ -3299,7 +3299,7 @@ function renderDay() {
     + '<button class="btn" onclick="openSlotModal()" style="font-size:11px;">⚡ 検査枠設定</button>'
     + '<button class="btn" onclick="openTypeLimitModal()" style="font-size:11px;">📊 種別枠設定</button>'
     + '<button class="btn" onclick="openMassageModal()" style="font-size:11px;">💆 マッサージ休み</button>'
-    + '<button class="btn" onclick="bulkHassou(selectedDate)" style="font-size:11px;">📮 事前問診 一括発送済</button>'
+    + '<button class="btn" onclick="bulkHassou(selectedDate)" style="font-size:11px;">📮 事前送付 一括発送済</button>'
     + '<button class="btn" onclick="doCSV()" style="font-size:11px;">📥 CSV</button>'
     + '<button class="btn btn-primary" onclick="openNewForm()" style="font-size:11px;">＋ 新規予約</button>'
     + '</div></div>'
@@ -3675,7 +3675,7 @@ function buildFormModal(r) {
     + '<button class="tog" id="fm-first-yes" onclick="fmSetFirst(true)">初回</button>'
     + '<button class="tog" id="fm-first-no"  onclick="fmSetFirst(false)">リピーター</button>'
     + '</div></div>'
-    + '<div class="fr"><label>事前書類</label><div class="tog-row">'
+    + '<div class="fr"><label>事前送付</label><div class="tog-row">'
     + '<button class="tog" id="fm-karte-unprepared"  onclick="fmSetKarte(\'unprepared\')">未準備</button>'
     + '<button class="tog" id="fm-karte-prepared"    onclick="fmSetKarte(\'prepared\')">準備済み</button>'
     + '<button class="tog" id="fm-karte-sent"        onclick="fmSetKarte(\'sent\')">発送済み</button>'
@@ -7912,7 +7912,7 @@ function doCSV() {
   var statusMap = {reserved:'予約中',changed:'変更あり',rescheduled:'日程変更済み',cancelled:'キャンセル済み',noshow:'当日未受診'};
   var karteMap = {prepared:'準備済み',unprepared:'未準備',sent:'発送済み',unnecessary:'不要'};
   var mealMap = {store:'店内',bento:'弁当',unknown:'未確認',none:'不要'};
-  var rows = [['予約日','氏名','カナ','生年月日','電話','カルテ番号','性別','午前午後','健診種別','人間ドック枠対象','協会健保枠対象','一般・その他枠対象','予約区分','企業名','健診枠','胃検査種類','胃検査時間帯','胃カメラ指名医','マンモ','マンモ時間帯','MRI','CT','認知','骨密度','M-D','視野','結果説明','MRI結果説明','マッサージ','頚動脈','乳エコー','子宮','MRCP','DWIBS','ロコモ','大腸F','誠寿司','誠寿司区分','誠寿司人数','事前書類','発送日','ステータス','キャンセル理由','最終変更','メモ','受付メモ(旧)','検査メモ(旧)','連絡メモ(旧)','重要メモ(旧)','対応者']];
+  var rows = [['予約日','氏名','カナ','生年月日','電話','カルテ番号','性別','午前午後','健診種別','人間ドック枠対象','協会健保枠対象','一般・その他枠対象','予約区分','企業名','健診枠','胃検査種類','胃検査時間帯','胃カメラ指名医','マンモ','マンモ時間帯','MRI','CT','認知','骨密度','M-D','視野','結果説明','MRI結果説明','マッサージ','頚動脈','乳エコー','子宮','MRCP','DWIBS','ロコモ','大腸F','誠寿司','誠寿司区分','誠寿司人数','事前送付','発送日','ステータス','キャンセル理由','最終変更','メモ','受付メモ(旧)','検査メモ(旧)','連絡メモ(旧)','重要メモ(旧)','対応者']];
   reservations.filter(function(r){return r.date===selectedDate;}).forEach(function(r){
     var et = examTypeById(r.examTypeId);
     var bucket = et ? et.bucket : '';
