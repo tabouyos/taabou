@@ -744,6 +744,28 @@ async function sbLoadAll() {
       Object.keys(_localPass).forEach(function(_k){
         if (!passageData[_k] && (_localPass[_k].note || _localPass[_k].recumbent)) passageData[_k] = _localPass[_k];
       });
+      // note/recumbent 列が追加済みなら、この端末にだけあるメモ・臥床を1回だけクラウドへ送る
+      var _pgHasCols = (pgRes.data||[]).length === 0 || Object.prototype.hasOwnProperty.call(pgRes.data[0], 'note');
+      if (_pgHasCols && !migDone('passage_note_v1')) {
+        var _pgCloud = {};
+        (pgRes.data||[]).forEach(function(row){ _pgCloud[row.reservation_id + '|' + row.station] = row; });
+        var pgMig = [];
+        Object.keys(_localPass).forEach(function(_k){
+          var lp = _localPass[_k], cr = _pgCloud[_k];
+          if (!lp.note && !lp.recumbent) return;
+          if (cr && (cr.note || cr.recumbent)) return;  // クラウドに既にあればクラウドを正とする
+          var _i = _k.indexOf('|'), rec = passageData[_k] || lp;
+          pgMig.push({reservation_id:_k.slice(0,_i), station:_k.slice(_i+1), state:rec.state||'',
+                      start_at:rec.startAt||'', end_at:rec.endAt||'', done_by:rec.by||'',
+                      note:lp.note||'', recumbent:!!lp.recumbent});
+        });
+        if (pgMig.length>0) {
+          SB.from('passage_records').upsert(pgMig, {onConflict:'reservation_id,station'}).then(function(res){
+            if (res.error) console.error('[SB] passage_records 移行', res.error);
+            else { setMigDone('passage_note_v1'); console.log('[SB] passage_records メモ・臥床 ローカルから'+pgMig.length+'件移行'); }
+          });
+        } else setMigDone('passage_note_v1');
+      }
     } else {
       PASSAGE_SYNC_READY = false;
     }
@@ -753,10 +775,27 @@ async function sbLoadAll() {
     if (kpRes.error) { KARTEPREP_SYNC_READY = false; sbLoadErr('karte_prep（許容・続行）', 'select *', kpRes.error); }
     else {
       KARTEPREP_SYNC_READY = true;
+      var _localKp = kartePrepDone || {};
       kartePrepDone = {};
       (kpRes.data||[]).forEach(function(row) {
         if (row.done) kartePrepDone[row.date] = { done:true, by: row.changed_by || '', at: row.changed_at || '' };
       });
+      // テーブル作成前にこの端末だけで付けた「カルテ済」を1回だけクラウドへ送る
+      if (!migDone('karte_prep_v1')) {
+        var kpMig = [];
+        Object.keys(_localKp).forEach(function(d){
+          var v = _localKp[d];
+          if (!v || !v.done || kartePrepDone[d]) return;
+          kartePrepDone[d] = v;
+          kpMig.push({date:d, done:true, changed_by:v.by||'', changed_at:v.at||''});
+        });
+        if (kpMig.length>0) {
+          SB.from('karte_prep').upsert(kpMig, {onConflict:'date'}).then(function(res){
+            if (res.error) console.error('[SB] karte_prep 移行', res.error);
+            else { setMigDone('karte_prep_v1'); console.log('[SB] karte_prep ローカルから'+kpMig.length+'件移行'); }
+          });
+        } else setMigDone('karte_prep_v1');
+      }
     }
 
     // pass_station_overrides（通過管理の当日キャンセル/追加）— テーブル未作成でも全体を止めない
@@ -764,10 +803,29 @@ async function sbLoadAll() {
     if (poRes.error) { PASSOV_SYNC_READY = false; sbLoadErr('pass_station_overrides（許容・続行）', 'select *', poRes.error); }
     else {
       PASSOV_SYNC_READY = true;
+      var _localPo = passStationOv || {};
       passStationOv = {};
       (poRes.data||[]).forEach(function(row) {
         if (row.mode === 'add' || row.mode === 'cancel') passStationOv[row.reservation_id + '|' + row.station] = row.mode;
       });
+      // テーブル作成前にこの端末だけで行った当日キャンセル/追加を1回だけクラウドへ送る
+      if (!migDone('pass_station_ov_v1')) {
+        var poMig = [];
+        Object.keys(_localPo).forEach(function(k){
+          var mode = _localPo[k];
+          if ((mode !== 'add' && mode !== 'cancel') || passStationOv[k]) return;
+          passStationOv[k] = mode;
+          var _i = k.indexOf('|');
+          poMig.push({reservation_id:k.slice(0,_i), station:k.slice(_i+1), mode:mode,
+                      changed_by:(CURRENT_STAFF||''), changed_at:nowStr()});
+        });
+        if (poMig.length>0) {
+          SB.from('pass_station_overrides').upsert(poMig, {onConflict:'reservation_id,station'}).then(function(res){
+            if (res.error) console.error('[SB] pass_station_overrides 移行', res.error);
+            else { setMigDone('pass_station_ov_v1'); console.log('[SB] pass_station_overrides ローカルから'+poMig.length+'件移行'); }
+          });
+        } else setMigDone('pass_station_ov_v1');
+      }
     }
 
     // akiba_days（秋葉医院予約表）— テーブル未作成でも全体を止めない
@@ -2395,6 +2453,9 @@ var staffMemos = [];    // スタッフ共有メモ（配列、各メモは削�
 // 対象は当日業務表・健診センター日誌・共有メモの3つだけ。
 // 予約データはSupabaseで同期、シフトは対象外（今回は触らない）。
 var LOCAL_KEY = 'kenshin_local_v1';
+// クラウド未同期だったローカル記録の「この端末からの1回きり移行」済みフラグ
+function migDone(name) { try { return localStorage.getItem('kenshin_mig_' + name) === '1'; } catch(e) { return true; } }
+function setMigDone(name) { try { localStorage.setItem('kenshin_mig_' + name, '1'); } catch(e) {} }
 function saveLocal() {
   try {
     var payload = { worklistData: worklistData, diaryData: diaryData, staffMemos: staffMemos,
