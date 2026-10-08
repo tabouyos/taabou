@@ -60,6 +60,6 @@ python3 月ノルマ/check_totals.py 月ノルマ/<ファイル名>.xlsx
 - 編集は外科的に、テンプレートリテラル禁止(シングルクォート+連結)。変更後は `<script>` を抽出して `node --check` で構文検証
 - マイグレーションSQL `kenshin-migration-add-columns.sql`、スタッフ向け `健診センターシステム_使用書.html` も同フォルダ。機能を変えたら使用書も合わせて更新する
 - 公開方法は保留(2026/10)。全テーブルが anon で全操作可のため、URL を知れば誰でも患者データを読み書きできる公開は不可。システムの変更が落ち着いたら、パスワード保護付きの公開(または各PCへの手配布)を設定する予定
-- Supabase同期(2026/10/6〜):ステップ1(列追加 `kenshin-migration-step1-columns.sql`)は実行済み。残り=全PCを修正版v16(端末内記録の1回移行入り)へ入れ替え → ステップ2(`kenshin-migration-step2-tables.sql`、karte_prep・pass_station_overrides・diaries作成)→ 各PCで1回起動。ステップ2を入れ替え前に流すと旧版PCの端末内記録が消えるので順番厳守
+- Supabase同期(2026/10/6〜):ステップ1(列追加 `kenshin-migration-step1-columns.sql`)は実行済み。残り=全PCを修正版v16(端末内記録の1回移行入り)へ入れ替え → ステップ2(`kenshin-migration-step2-tables.sql`、karte_prep・pass_station_overrides・diaries作成)→ 各PCで1回起動。ステップ2を入れ替え前に流すと旧版PCの端末内記録が消えるので順番厳守。2026/10/8 時点で14台に修正版を導入済み(PCは今後も増える。新しいPCは端末内記録がないので最新版を入れるだけでよい)
 - 健診センター日誌は全PC共有に決定(2026/10)。`diaries` テーブル(date PK, data jsonb)をステップ2で作成。起動時、クラウドに無い日の端末内日誌は送信、同日の別版は端末の `kenshin_diary_backup_v1` に控え
 - 医事課連携(2026/10):電子カルテはLIVEWORKS(DWH=PostgreSQL)。カルテNo＝`dwh_患者基本情報`.`患者id`(診察券は8桁。書き出し時に先頭0埋め8桁)。書き出しSQLは `健診システム/liveworks-dwh-export.sql`、取込は既存の「受診者CSV取込」(和暦・ひらがな・全角対応、patientsは分割で全件読込)。件数が数万超なら起動時全件読込→カルテNo入力時の都度問い合わせ方式への変更を検討。病院の取扱い・Supabase利用の許可は取得済み(2026/10 本人確認)
