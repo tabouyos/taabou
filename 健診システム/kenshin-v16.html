@@ -14,6 +14,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',san
 .topbar h1{font-size:18px;font-weight:600;}
 .topbar p{font-size:12px;color:#94a3b8;}
 .tabs{background:#fff;border-bottom:1px solid #e2e8f0;display:flex;flex-wrap:wrap;overflow-x:auto;position:sticky;top:53px;z-index:40;}
+/* 通過管理を開いている間は上のタブ列を隠して画面を広く使う（左下のボタンで表示/非表示） */
+body.pass-focus .tabs{display:none;}
+#pass-tabs-toggle{display:none;position:fixed;left:12px;bottom:12px;z-index:60;padding:8px 14px;border-radius:999px;border:1px solid #cbd5e1;background:#fff;color:#334155;font-size:13px;font-weight:700;box-shadow:0 2px 8px rgba(15,23,42,.15);cursor:pointer;}
+body.in-passage #pass-tabs-toggle{display:block;}
 .tab-btn{padding:12px 18px;font-size:15px;cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;color:#64748b;white-space:nowrap;}
 .tab-btn.active{border-bottom-color:#3B82F6;color:#3B82F6;font-weight:500;}
 .main{padding:16px;max-width:1240px;margin:0 auto;}
@@ -307,6 +311,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',san
     <button class="tab-btn" id="tab-memo-btn" onclick="switchTab('memo')">📌 共有メモ</button>
     <button class="tab-btn" id="tab-shift-btn" onclick="switchTab('shift')">📅 勤務表</button>
   </div>
+  <button id="pass-tabs-toggle" onclick="togglePassTabs()">☰ タブを表示</button>
   <div class="main">
     <div id="tab-calendar-content"></div>
     <div id="tab-day-content" style="display:none"></div>
@@ -2976,6 +2981,10 @@ function switchTab(tab) {
       if (btn) btn.classList.toggle('active', t === tab);
       if (content) content.style.display = t === tab ? 'block' : 'none';
     }
+    // 通過管理ではタブ列を隠す（開くたびに隠した状態から）
+    document.body.classList.toggle('in-passage', tab === 'passage');
+    document.body.classList.toggle('pass-focus', tab === 'passage');
+    updatePassTabsToggle();
     // 勤務表タブのみ横幅を広げる
     var mainEl = document.querySelector('.main');
     if (mainEl) mainEl.classList.toggle('main-wide', tab === 'shift');
@@ -2983,6 +2992,15 @@ function switchTab(tab) {
   } catch(e) {
     showError('switchTab: ' + e.message);
   }
+}
+
+function togglePassTabs() {
+  document.body.classList.toggle('pass-focus');
+  updatePassTabsToggle();
+}
+function updatePassTabsToggle() {
+  var b = document.getElementById('pass-tabs-toggle');
+  if (b) b.textContent = document.body.classList.contains('pass-focus') ? '☰ タブを表示' : '✕ タブを隠す';
 }
 
 function renderCurrentTab() {
@@ -5815,7 +5833,7 @@ var passViewMode = 'overview'; // 'overview'（配置ボード） | 'detail'（�
 var passViewSlot = (new Date().getHours() < 13 ? 'am' : 'pm'); // 'am' | 'pm' | 'all'
 var passShowAllCols = true; // 時刻表：true=全27項目 / false=その日使う項目のみ
 function setPassShowAllCols(v) { passShowAllCols = v; renderPassage(); }
-var passOnlyPending = false; // true=終わっていない人だけ表示 / false=全体
+var passOnlyPending = true; // true=終わっていない人だけ表示（初期値） / false=全体
 function setPassOnlyPending(v) { passOnlyPending = v; renderPassage(); }
 function setPassView(mode) { passViewMode = mode; renderPassage(); }
 function setPassSlot(slot) { passViewSlot = slot; renderPassage(); }
@@ -6053,7 +6071,7 @@ async function createNextReservation(resId) {
 
 // ── 部署ビュー（検査列タップで、その検査だけの一覧を表示）──
 var passStationView = null;
-var passStationOnlyPending = false; // 部署ビュー：未実施のみ表示
+var passStationOnlyPending = true; // 部署ビュー：未実施のみ表示（初期値）
 function togglePassStationPending(v) { passStationOnlyPending = v; renderPassage(); }
 function openPassStation(key) { passStationView = key; renderPassage(); }
 function closePassStation() { passStationView = null; renderPassage(); }
