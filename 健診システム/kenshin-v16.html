@@ -462,6 +462,7 @@ function rowToRes(row) {
     memoMerged:          !!row.memo_merged,
     mammoTime:           row.mammo_time || '',
     hasShikyu:           !!row.has_shikyu,
+    hasShikyuA:          !!row.has_shikyu_a,
     firstVisit:          !!row.first_visit,
     preMonshinStatus:    row.pre_monshin_status || '',
     hasMRCP:             !!row.has_mrcp,
@@ -534,6 +535,7 @@ function resToRow(r) {
     memo_merged:       !!r.memoMerged,
     mammo_time:        r.mammoTime || '',
     has_shikyu:        !!r.hasShikyu,
+    has_shikyu_a:      !!r.hasShikyuA,
     first_visit:       !!r.firstVisit,
     pre_monshin_status: r.preMonshinStatus || null,
     has_mrcp:          !!r.hasMRCP,
@@ -1120,6 +1122,7 @@ async function sbUpsertReservation(r) {
     delete row2.pre_monshin_status;
     delete row2.first_visit;
     delete row2.pre_monshin_sent;
+    delete row2.has_shikyu_a;
     var res2 = await SB.from('reservations').upsert(row2);
     if (res2.error) {
       setSyncBadge('error', '保存エラー');
@@ -1713,7 +1716,8 @@ var TRACK_FIELDS = [
   {k:'hasMassage',      label:'マッサージ',    fmt:hBool},
   {k:'hasKeidou',       label:'頚動脈',        fmt:hBool},
   {k:'hasNyuecho',      label:'乳エコー',      fmt:hBool},
-  {k:'hasShikyu',       label:'子宮',          fmt:hBool},
+  {k:'hasShikyu',       label:'子宮B（院内）', fmt:hBool},
+  {k:'hasShikyuA',      label:'子宮A（他院）', fmt:hBool},
   {k:'hasMRCP',         label:'MRCP',          fmt:hBool},
   {k:'hasDWIBS',        label:'DWIBS',         fmt:hBool},
   {k:'hasDaicho',       label:'大腸F',         fmt:hBool},
@@ -2726,7 +2730,7 @@ var FS = {
   isKenshin:false, hasGF:false, hasMRI:false, hasKeinyuu:false, hasKeidou:false, hasNyuecho:false, hasMammo:false, mammoTime:'', memoMerged:false,
   hasCT:false, hasNinchi:false, hasKotsu:false, hasMD:false, hasShiya:false,
   hasKekka:false, hasMRIKekka:false, hasMassage:false,
-  hasShikyu:false, firstVisit:false, preMonshinStatus:'', hasMRCP:false, hasDWIBS:false, hasRocomo:false,
+  hasShikyu:false, hasShikyuA:false, firstVisit:false, preMonshinStatus:'', hasMRCP:false, hasDWIBS:false, hasRocomo:false,
   hasDaicho:false, seisushi:'no', karteStatus:'unprepared', companyColorIdx:0,
   gfDoctor:''
 };
@@ -2861,7 +2865,7 @@ function makeRes(o) {
   var base = {
     id:uid(), birth:'1970-01-01', phone:'090-0000-0000',
     course:rand(COURSES), isKenshin:false,
-    hasGF:false, hasMRI:false, hasKeinyuu:false, hasShikyu:false,
+    hasGF:false, hasMRI:false, hasKeinyuu:false, hasShikyu:false, hasShikyuA:false,
     hasMRCP:false, hasDWIBS:false, hasRocomo:false, hasDaicho:false,
     seisushi:'no', memo:'', karte:'unprepared', gfDoctor:'',
     stomachExamType:'', stomachExamTime:'',
@@ -3143,7 +3147,7 @@ function slotHTML(date) {
     + '</div></div>'
     + '<div class="ss"><div class="ss-title">1日合計</div>'
     + '<div class="sg4">'
-    + siHTML('子宮',sl.shikyu,lm.shikyu,'1日')+siHTML('健診',sl.kenshin,lm.kenshin,'1日')
+    + siHTML('子宮B',sl.shikyu,lm.shikyu,'1日')+siHTML('健診',sl.kenshin,lm.kenshin,'1日')
     + siHTML('🍣誠寿司',sl.seisushi,0,'')+'<div></div>'+'</div>'
     + ((sl.dwibs||sl.rocomo||sl.daicho)?'<div class="sg4" style="margin-top:5px;">'+siHTML('DWIBS',sl.dwibs,0,'')+siHTML('ロコモ',sl.rocomo,0,'')+siHTML('大腸F',sl.daicho,0,'')+'<div></div></div>':'')
     + '</div>';
@@ -3205,7 +3209,7 @@ function renderCalendar() {
     if (sl.pmMale>=lm.pmMale)   fullItems.push('男午後');
     if (sl.amFemale>=lm.amFemale) fullItems.push('女午前');
     if (sl.pmFemale>=lm.pmFemale) fullItems.push('女午後');
-    if (sl.shikyu>=lm.shikyu)   fullItems.push('子宮');
+    if (sl.shikyu>=lm.shikyu)   fullItems.push('子宮B');
     if (sl.kenshin>=lm.kenshin) fullItems.push('健診');
 
     // ── 種別枠（バケット）の注意/満枠/超過判定 ──
@@ -3374,7 +3378,7 @@ function resRowHTML(r, isHist) {
             : r.stomachExamType==='barium' ? '胃バリウム'+((r.stomachExamTime||r.timeSlot)==='pm'?'(PM)':'(AM)')
             : r.stomachExamType==='none'   ? '胃なし' : '';
   var mmTag = r.hasMammo ? 'マンモ'+((r.mammoTime||r.timeSlot)==='pm'?'(PM)':'(AM)') : '';
-  var examTags = [stTag,mmTag,r.hasMRI&&'MRI',r.hasKeidou&&'頚動脈',r.hasNyuecho&&'乳エコー',r.hasShikyu&&'子宮',r.hasMRCP&&'MRCP',r.hasDWIBS&&'DWIBS',r.hasRocomo&&'ロコモ',r.hasDaicho&&'大腸F',r.hasCT&&'CT',r.hasNinchi&&'認知',r.hasKotsu&&'骨密度',r.hasMD&&'M-D',r.hasShiya&&'視野',r.hasKekka&&'結果説明',r.hasMRIKekka&&'MRI結果説明',r.hasMassage&&'マッサージ'].filter(Boolean);
+  var examTags = [stTag,mmTag,r.hasMRI&&'MRI',r.hasKeidou&&'頚動脈',r.hasNyuecho&&'乳エコー',r.hasShikyu&&'子宮B',r.hasShikyuA&&'子宮A(他院)',r.hasMRCP&&'MRCP',r.hasDWIBS&&'DWIBS',r.hasRocomo&&'ロコモ',r.hasDaicho&&'大腸F',r.hasCT&&'CT',r.hasNinchi&&'認知',r.hasKotsu&&'骨密度',r.hasMD&&'M-D',r.hasShiya&&'視野',r.hasKekka&&'結果説明',r.hasMRIKekka&&'MRI結果説明',r.hasMassage&&'マッサージ'].filter(Boolean);
   var slotB = r.timeSlot==='am'
     ? '<span class="badge" style="background:#EFF6FF;color:#3B82F6;font-size:10px;">午前</span>'
     : '<span class="badge" style="background:#F5F3FF;color:#7C3AED;font-size:10px;">午後</span>';
@@ -3520,6 +3524,7 @@ function fsInit(r) {
   FS.hasNyuecho = r ? ((r.hasNyuecho!==undefined) ? !!r.hasNyuecho : !!r.hasKeinyuu) : false;
   FS.mammoTime  = r ? (r.hasMammo ? (r.mammoTime||r.timeSlot||'am') : '') : '';
   FS.hasShikyu  = r ? !!r.hasShikyu : false;
+  FS.hasShikyuA = r ? !!r.hasShikyuA : false;
   FS.firstVisit = r ? !!r.firstVisit : false;
   FS.preMonshinStatus = r ? (r.preMonshinStatus||'') : '';
   FS.hasMRCP    = r ? !!r.hasMRCP : false;
@@ -3588,7 +3593,7 @@ function fsRender() {
   if (kEl) kEl.classList.toggle('on-green', FS.isKenshin);
 
   // 検査項目（複数=藍）
-  var examKeys = ['hasMRI','hasKeidou','hasNyuecho','hasShikyu','hasMRCP','hasDWIBS','hasRocomo','hasDaicho','hasCT','hasNinchi','hasKotsu','hasMD','hasShiya','hasKekka','hasMRIKekka','hasMassage'];
+  var examKeys = ['hasMRI','hasKeidou','hasNyuecho','hasShikyu','hasShikyuA','hasMRCP','hasDWIBS','hasRocomo','hasDaicho','hasCT','hasNinchi','hasKotsu','hasMD','hasShiya','hasKekka','hasMRIKekka','hasMassage'];
   // 胃検査（5タブ: 種類×時間帯の組合せ／未選択は無選択表示＝既存の空欄データを保持）
   var stKey = (FS.stomachType==='none') ? 'none'
             : (FS.stomachType==='camera'||FS.stomachType==='barium') ? (FS.stomachType+'-'+(FS.stomachTime||FS.timeSlot))
@@ -3604,7 +3609,7 @@ function fsRender() {
     shEl.disabled = !canSh;
     shEl.style.opacity = canSh ? '' : '0.4';
     shEl.style.cursor = canSh ? '' : 'not-allowed';
-    shEl.title = canSh ? '' : '子宮検査は ' + shikyuDayLabel() + ' のみ実施です（祝日を除く）';
+    shEl.title = canSh ? '' : '子宮B（院内）は ' + shikyuDayLabel() + ' のみ実施です（祝日を除く）';
     if (!canSh && FS.hasShikyu) FS.hasShikyu = false;
   }
   examKeys.forEach(function(k) {
@@ -3813,7 +3818,8 @@ function buildFormModal(r) {
     + '<button class="tog" id="fm-hasMRI"     onclick="fmTogE(\'hasMRI\')">MRI<span class="exam-note">午前枠</span></button>'
     + '<button class="tog" id="fm-hasKeidou" onclick="fmTogE(\'hasKeidou\')">頚動脈<span class="exam-note">午前枠</span></button>'
     + '<button class="tog" id="fm-hasNyuecho" onclick="fmTogE(\'hasNyuecho\')">乳エコー<span class="exam-note">午前枠</span></button>'
-    + '<button class="tog" id="fm-hasShikyu"  onclick="fmTogE(\'hasShikyu\')">子宮<span class="exam-note">月火水・第2土</span></button>'
+    + '<button class="tog" id="fm-hasShikyu"  onclick="fmTogE(\'hasShikyu\')">子宮B<span class="exam-note">院内・月火水・第2土</span></button>'
+    + '<button class="tog" id="fm-hasShikyuA" onclick="fmTogE(\'hasShikyuA\')">子宮A<span class="exam-note">他院・会計で案内</span></button>'
     + '<button class="tog" id="fm-hasRocomo"  onclick="fmTogE(\'hasRocomo\')">ロコモ<span class="exam-note">制限なし</span></button>'
     + '<button class="tog" id="fm-hasDaicho"  onclick="fmTogE(\'hasDaicho\')">大腸ファイバー<span class="exam-note">制限なし</span></button>'
     + '<button class="tog" id="fm-hasCT"      onclick="fmTogE(\'hasCT\')">CT<span class="exam-note">制限なし</span></button>'
@@ -3921,7 +3927,7 @@ function checkWarn() {
   }
   if (FS.gender==='male' && adj(function(r){return r.gender==='male'&&r.timeSlot===slot;})+1>(isAm?lm.amMale:lm.pmMale)) warns.push('⚡ 男性（'+(isAm?'午前':'午後')+'）上限超え');
   if (FS.gender==='female' && adj(function(r){return r.gender==='female'&&r.timeSlot===slot;})+1>(isAm?lm.amFemale:lm.pmFemale)) warns.push('⚡ 女性（'+(isAm?'午前':'午後')+'）上限超え');
-  if (FS.hasShikyu && adj(function(r){return r.hasShikyu;})+1>lm.shikyu) warns.push('⚡ 子宮（1日）上限超え');
+  if (FS.hasShikyu && adj(function(r){return r.hasShikyu;})+1>lm.shikyu) warns.push('⚡ 子宮B（1日）上限超え');
   if (FS.isKenshin && adj(function(r){return r.isKenshin;})+1>lm.kenshin) warns.push('⚡ 健診枠（1日）上限超え');
   var w = document.getElementById('fm-warn');
   if (w) w.innerHTML = warns.length ? '<div class="warn-box">'+warns.join('<br>')+'</div>' : '';
@@ -3976,7 +3982,7 @@ async function saveForm() {
     stomachExamTime: (FS.stomachType==='none') ? FS.timeSlot
                    : (FS.stomachType==='camera'||FS.stomachType==='barium') ? (FS.stomachTime||FS.timeSlot)
                    : '',
-    hasMRI:FS.hasMRI, hasKeidou:FS.hasKeidou, hasNyuecho:FS.hasNyuecho, hasKeinyuu:!!(FS.hasKeidou||FS.hasNyuecho), hasShikyu:FS.hasShikyu,
+    hasMRI:FS.hasMRI, hasKeidou:FS.hasKeidou, hasNyuecho:FS.hasNyuecho, hasKeinyuu:!!(FS.hasKeidou||FS.hasNyuecho), hasShikyu:FS.hasShikyu, hasShikyuA:!!FS.hasShikyuA,
     hasCT:FS.hasCT, hasNinchi:FS.hasNinchi, hasKotsu:FS.hasKotsu, hasMD:FS.hasMD,
     hasShiya:FS.hasShiya, hasKekka:FS.hasKekka, hasMRIKekka:FS.hasMRIKekka, hasMassage:FS.hasMassage,
     hasMammo: !!FS.mammoTime,
@@ -4142,7 +4148,7 @@ function resContentSummary(r) {
             : r.stomachExamType==='barium' ? '胃バリウム'+(((r.stomachExamTime||r.timeSlot)==='pm')?'(PM)':'(AM)')
             : r.stomachExamType==='none' ? '胃なし' : '';
   var mmTag = r.hasMammo ? 'マンモ'+(((r.mammoTime||r.timeSlot)==='pm')?'(PM)':'(AM)') : '';
-  var tags = [stTag,mmTag,r.hasMRI&&'MRI',r.hasKeidou&&'頚動脈',r.hasNyuecho&&'乳エコー',r.hasShikyu&&'子宮',r.hasMRCP&&'MRCP',r.hasDWIBS&&'DWIBS',r.hasRocomo&&'ロコモ',r.hasDaicho&&'大腸F',r.hasCT&&'CT',r.hasNinchi&&'認知',r.hasKotsu&&'骨密度',r.hasMD&&'M-D',r.hasShiya&&'視野',r.hasKekka&&'結果説明',r.hasMRIKekka&&'MRI結果説明',r.hasMassage&&'マッサージ'].filter(Boolean);
+  var tags = [stTag,mmTag,r.hasMRI&&'MRI',r.hasKeidou&&'頚動脈',r.hasNyuecho&&'乳エコー',r.hasShikyu&&'子宮B',r.hasShikyuA&&'子宮A(他院)',r.hasMRCP&&'MRCP',r.hasDWIBS&&'DWIBS',r.hasRocomo&&'ロコモ',r.hasDaicho&&'大腸F',r.hasCT&&'CT',r.hasNinchi&&'認知',r.hasKotsu&&'骨密度',r.hasMD&&'M-D',r.hasShiya&&'視野',r.hasKekka&&'結果説明',r.hasMRIKekka&&'MRI結果説明',r.hasMassage&&'マッサージ'].filter(Boolean);
   var h = tags.map(function(t){ return '<span class="badge bd-indigo" style="margin:1px;font-size:10px;">'+esc(t)+'</span>'; }).join('');
   if (r.seisushi==='yes') h += '<span class="badge bd-amber" style="margin:1px;font-size:10px;">🍣'+({store:'お店',bento:'弁当'}[r.sushiMealType]||'')+(((r.sushiPeopleCount||1)>1)?(r.sushiPeopleCount)+'名':'')+'</span>';
   if (r.isKenshin) h += '<span class="badge bd-green" style="margin:1px;font-size:10px;">健診</span>';
@@ -4791,7 +4797,7 @@ function renderSearch() {
     + '<button class="tog" id="s-mammo" onclick="this.classList.toggle(\'on-indigo\')">マンモ</button>'
     + '<button class="tog" id="s-mri" onclick="this.classList.toggle(\'on-indigo\')">MRI</button>'
     + '<button class="tog" id="s-kn" onclick="this.classList.toggle(\'on-indigo\')">頚動脈・乳エコー</button>'
-    + '<button class="tog" id="s-sh" onclick="this.classList.toggle(\'on-indigo\')">子宮</button>'
+    + '<button class="tog" id="s-sh" onclick="this.classList.toggle(\'on-indigo\')">子宮B</button>'
     + '</div></div>'
     + '<div class="fr"><label>時間帯</label><div class="tog-row">'
     + '<button class="tog on-blue" id="s-both" onclick="setAP(\'both\')">両方</button>'
@@ -4864,7 +4870,7 @@ function runSearch() {
         if (sG==='male')   { var key=slot+'Male';   var rem=lm[key]-sl[key]; if(rem<=0)ok=false; else avail['男性'+lb]=rem; }
         if (sG==='female') { var key=slot+'Female'; var rem=lm[key]-sl[key]; if(rem<=0)ok=false; else avail['女性'+lb]=rem; }
       }
-      if (fSh) { var rem=lm.shikyu-sl.shikyu; if(rem<=0)ok=false; else avail['子宮(1日)']=rem; }
+      if (fSh) { var rem=lm.shikyu-sl.shikyu; if(rem<=0)ok=false; else avail['子宮B(1日)']=rem; }
       var anyF = fGF||fBarium||fMammo||fMRI||fK||fSh||sG;
       var active = reservations.filter(function(r){return r.date===ds&&(r.status==='reserved'||r.status==='changed');}).length;
       if (!anyF||ok) results.push({ds:ds,avail:avail,sl:sl,lm:lm,active:active,dow:DOW[cur.getDay()],year:cur.getFullYear()});
@@ -5869,6 +5875,11 @@ function setPassOnlyPending(v) { passOnlyPending = v; renderPassage(); }
 function setPassView(mode) { passViewMode = mode; renderPassage(); }
 function setPassSlot(slot) { passViewSlot = slot; renderPassage(); }
 /* 午前／午後の絞り込み。子宮B（院内の婦人科）は必ず午後に行うため、午前の方も「午後」に表示する */
+/* 子宮A（他院）は通過管理の検査には出さず、会計時に他院を案内できるよう名前の横に印を出す */
+function passShikyuABadge(r, big) {
+  if (!r || !r.hasShikyuA) return '';
+  return '<span title="子宮A（他院で検査）：会計時に他院の受診を案内してください" style="display:inline-block;background:#FCE7F3;color:#BE185D;border:1px solid #F9A8D4;border-radius:6px;padding:0 5px;margin-left:3px;font-weight:800;font-size:' + (big ? '11px' : '8px') + ';white-space:nowrap;">' + (big ? '子宮A 他院案内' : '子A他院') + '</span>';
+}
 function passIsShikyuPm(r) { return !!r.hasShikyu && r.timeSlot === 'am'; }
 function passInSlot(r) {
   if (passViewSlot === 'all' || r.timeSlot === passViewSlot) return true;
@@ -6045,7 +6056,7 @@ function openPassDetail(resId) {
   document.body.insertAdjacentHTML('beforeend',
     '<div class="mo" id="pass-detail" onclick="if(event.target===this)closeModal(\'pass-detail\')">'
     + '<div class="md" style="width:min(620px,95vw);">'
-    + '<div class="md-head"><span>' + esc(dispName(r)) + ' さん — メモ・臥床採血</span>'
+    + '<div class="md-head"><span>' + esc(dispName(r)) + ' さん — メモ・臥床採血' + passShikyuABadge(r, true) + '</span>'
     + '<button class="btn" onclick="closeModal(\'pass-detail\')" style="padding:2px 8px;">✕</button></div>'
     + '<div class="md-body">'
     + '<div style="font-size:11px;color:#94a3b8;margin-bottom:6px;">ステータス（時刻）の記録は時刻表のマスをクリックしてください。ここではメモと臥床採血を入力できます。</div>'
@@ -6193,7 +6204,7 @@ function passStationHTML(key, list) {
     return '<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:8px;background:'+rowBg+';'+(isDone?'opacity:.62;':'')+'flex-wrap:wrap;">'
       + '<div style="width:22px;text-align:center;color:#94a3b8;font-size:13px;">'+(i+1)+'</div>'
       + '<div style="width:76px;font-size:11px;color:#64748b;line-height:1.3;">'+esc(ageGender)+'</div>'
-      + '<div onclick="openPassDetail(\''+r.id+'\')" title="クリックでメモ・次回予約など" style="min-width:100px;font-size:17px;font-weight:700;cursor:pointer;">'+esc(dispName(r))+'</div>'
+      + '<div onclick="openPassDetail(\''+r.id+'\')" title="クリックでメモ・次回予約など" style="min-width:100px;font-size:17px;font-weight:700;cursor:pointer;">'+esc(dispName(r))+passShikyuABadge(r, true)+'</div>'
       + '<div style="display:flex;">'
       + '<button ondblclick="passDeptAdvance(\''+r.id+'\',\''+key+'\',event)" title="ダブルクリックで次へ（待機中→実施中→完了）" style="border:1px solid '+m.color+';background:'+m.bg+';color:'+m.color+';border-radius:8px 0 0 8px;padding:8px 14px;font-size:14px;font-weight:800;cursor:pointer;white-space:nowrap;">'+m.label+'</button>'
       + '<button onclick="openPassStatusMenu(\''+r.id+'\',\''+key+'\',event)" title="状態を選ぶ" style="border:1px solid '+m.color+';border-left:none;background:'+m.bg+';color:'+m.color+';border-radius:0 8px 8px 0;padding:8px 7px;font-size:12px;cursor:pointer;">▾</button>'
@@ -6484,7 +6495,7 @@ function renderPassage() {
       + '<span style="font-weight:700;font-size:11px;">' + esc(dispName(r)) + '</span>'
       + (allDone ? ' <span class="badge bd-green" style="font-size:8px;">済</span>' : '')
       + '<span style="font-size:8px;color:#94a3b8;margin-left:2px;">' + slotTag + '</span>'
-      + (passIsShikyuPm(r) ? '<span title="子宮B（院内）は午後に実施" style="font-size:8px;color:#BE185D;font-weight:700;margin-left:2px;">子B</span>' : '') + '</td>'
+      + (passIsShikyuPm(r) ? '<span title="子宮B（院内）は午後に実施" style="font-size:8px;color:#BE185D;font-weight:700;margin-left:2px;">子B</span>' : '') + passShikyuABadge(r, false) + '</td>'
       + '<td style="position:sticky;left:108px;z-index:1;background:' + rowBg + ';border:1px solid #e2e8f0;padding:3px 2px;text-align:center;font-size:10px;width:22px;">' + (r.gender === 'male' ? '男' : r.gender === 'female' ? '女' : '') + '</td>';
 
     showCols.forEach(function(c) {
@@ -6547,7 +6558,8 @@ function passOverviewHTML(list, cols) {
     if (!chips) chips = '<span style="color:#059669;font-weight:700;font-size:12px;">✓ すべて完了</span>';
     var rowBg = allDone ? '#F6FEF9' : (i % 2 ? '#FCFCFD' : '#fff');
     var nowTag = (nx.nowLabel ? '<span style="font-size:10px;color:#DC2626;font-weight:700;white-space:nowrap;">今:'+esc(nx.nowLabel)+'</span>' : '')
-      + (passIsShikyuPm(r) ? ' <span style="font-size:10px;color:#BE185D;font-weight:700;white-space:nowrap;">午前・子宮B（午後に実施）</span>' : '');
+      + (passIsShikyuPm(r) ? ' <span style="font-size:10px;color:#BE185D;font-weight:700;white-space:nowrap;">午前・子宮B（午後に実施）</span>' : '')
+      + passShikyuABadge(r, true);
     return '<tr style="background:' + rowBg + ';' + (allDone?'opacity:.7;':'') + 'cursor:pointer;" onclick="openPassDetail(\''+r.id+'\')" title="クリックで詳細（メモ・次回予約）">'
       + '<td style="padding:6px 6px;text-align:center;color:#94a3b8;font-size:12px;border-bottom:1px solid #eef2f7;vertical-align:top;">' + (i+1) + '</td>'
       + '<td style="padding:6px 8px;white-space:nowrap;font-weight:800;font-size:16px;border-bottom:1px solid #eef2f7;vertical-align:top;">' + esc(dispName(r)) + '<div>'+nowTag+'</div></td>'
@@ -8139,7 +8151,7 @@ function doCSV() {
   var statusMap = {reserved:'予約中',changed:'変更あり',rescheduled:'日程変更済み',cancelled:'キャンセル済み',noshow:'当日未受診'};
   var karteMap = {prepared:'準備済み',unprepared:'未準備',sent:'発送済み',unnecessary:'不要'};
   var mealMap = {store:'店内',bento:'弁当',unknown:'未確認',none:'不要'};
-  var rows = [['予約日','氏名','カナ','生年月日','電話','カルテ番号','性別','午前午後','健診種別','人間ドック枠対象','協会健保枠対象','一般・その他枠対象','予約区分','企業名','健診枠','胃検査種類','胃検査時間帯','胃カメラ指名医','マンモ','マンモ時間帯','MRI','CT','認知','骨密度','M-D','視野','結果説明','MRI結果説明','マッサージ','頚動脈','乳エコー','子宮','MRCP','DWIBS','ロコモ','大腸F','誠寿司','誠寿司区分','誠寿司人数','事前送付','発送日','ステータス','キャンセル理由','最終変更','メモ','受付メモ(旧)','検査メモ(旧)','連絡メモ(旧)','重要メモ(旧)','対応者']];
+  var rows = [['予約日','氏名','カナ','生年月日','電話','カルテ番号','性別','午前午後','健診種別','人間ドック枠対象','協会健保枠対象','一般・その他枠対象','予約区分','企業名','健診枠','胃検査種類','胃検査時間帯','胃カメラ指名医','マンモ','マンモ時間帯','MRI','CT','認知','骨密度','M-D','視野','結果説明','MRI結果説明','マッサージ','頚動脈','乳エコー','子宮B(院内)','子宮A(他院)','MRCP','DWIBS','ロコモ','大腸F','誠寿司','誠寿司区分','誠寿司人数','事前送付','発送日','ステータス','キャンセル理由','最終変更','メモ','受付メモ(旧)','検査メモ(旧)','連絡メモ(旧)','重要メモ(旧)','対応者']];
   reservations.filter(function(r){return r.date===selectedDate;}).forEach(function(r){
     var et = examTypeById(r.examTypeId);
     var bucket = et ? et.bucket : '';
@@ -8160,7 +8172,7 @@ function doCSV() {
       r.hasMammo?'○':'',
       r.hasMammo?((r.mammoTime||r.timeSlot)==='pm'?'PM':'AM'):'',
       r.hasMRI?'○':'',
-      r.hasCT?'○':'',r.hasNinchi?'○':'',r.hasKotsu?'○':'',r.hasMD?'○':'',r.hasShiya?'○':'',r.hasKekka?'○':'',r.hasMRIKekka?'○':'',r.hasMassage?'○':'',r.hasKeidou?'○':'',r.hasNyuecho?'○':'',r.hasShikyu?'○':'',
+      r.hasCT?'○':'',r.hasNinchi?'○':'',r.hasKotsu?'○':'',r.hasMD?'○':'',r.hasShiya?'○':'',r.hasKekka?'○':'',r.hasMRIKekka?'○':'',r.hasMassage?'○':'',r.hasKeidou?'○':'',r.hasNyuecho?'○':'',r.hasShikyu?'○':'',r.hasShikyuA?'○':'',
       r.hasMRCP?'○':'',r.hasDWIBS?'○':'',r.hasRocomo?'○':'',r.hasDaicho?'○':'',
       r.seisushi==='yes'?'あり':r.seisushi==='unknown'?'未確認':'なし',
       r.seisushi==='no'?'':(mealMap[r.sushiMealType]||''),
