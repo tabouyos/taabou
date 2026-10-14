@@ -54,3 +54,15 @@ python3 月ノルマ/check_totals.py 月ノルマ/<ファイル名>.xlsx
 
 - 鈴木マネ:土曜休み。AI関連の理解が薄いため、説明時間が内容により変動する
 - コア会議のまとめ作成、記録委員としての看護部サマリー編集は本人の継続業務
+
+## FRAX対象者シート — `FRAX/`
+
+健診の患者一覧から FRAX の条件(既定:40〜90歳・YAM 70%超〜80%未満・脆弱性骨折による骨粗鬆症診断なし)に
+当てはまる患者だけを抽出し、1人1シートのFRAX評価シートを作る。詳細は `FRAX/README.md`。
+
+```
+python3 FRAX/make_frax_sheets.py <患者一覧.xlsx|.csv> [出力.xlsx]
+python3 FRAX/make_frax_sheets.py --template FRAX/FRAX入力_テンプレート.xlsx
+```
+
+- テンプレートのサンプル患者は架空。実患者データはコミットしない
