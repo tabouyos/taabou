@@ -33,12 +33,16 @@
   th, td { border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; vertical-align: top; }
   th { background: #F1F5F9; }
   .pill { display: inline-block; border-radius: 12px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
-  .p-mi { background:#F1F5F9; color:#64748B; }
-  .p-machi { background:#FFEDD5; color:#C2410C; }
-  .p-doing { background:#DBEAFE; color:#1D4ED8; }
-  .p-done { background:#DCFCE7; color:#059669; }
-  .p-hold { background:#FEE2E2; color:#B91C1C; }
-  .p-sai { background:#FFE4E6; color:#BE123C; }
+  .p-mi { background:#DBEAFE; color:#1D4ED8; }
+  .p-machi { background:#FEF08A; color:#854D0E; }
+  .p-doing { background:#FEE2E2; color:#DC2626; }
+  .p-done { background:#E5E7EB; color:#4B5563; }
+  .p-hold { background:#DCFCE7; color:#15803D; }
+  .p-sai { background:#DCFCE7; color:#15803D; }
+  .p-help { background:#D1FAE5; color:#047857; }
+  .p-d2 { background:#F3E8FF; color:#7E22CE; }
+  .p-d3 { background:#FFEDD5; color:#EA580C; }
+  .p-d4 { background:#FCE7F3; color:#DB2777; }
   .step { counter-reset: step; }
   hr { border: none; border-top: 1px solid #e2e8f0; margin: 30px 0; }
   .foot { margin-top: 40px; padding-top: 12px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 12px; }
@@ -135,24 +139,40 @@
   <li><b>時刻表：</b>受診者ごとに各検査の開始／終了時刻を記録する詳細表。</li>
   <li><b>部署ビュー：</b>検査名（見出し）をクリックすると、その検査だけの一覧（採血室・計測室など各部門用）に切り替わります。</li>
 </ul>
-<p>上部の「午前／午後／全体」で対象を絞れます。「終わっていない人のみ表示」は<b>最初からチェックが入っていて</b>、まだ全部終わっていない人だけを表示します。全員を見たいときはチェックを外してください。</p>
+<p>上部の「午前／午後／全体」で対象を絞れます。<b>子宮B（院内の婦人科）がある方は必ず午後に行うため、午前の予約でも「午後」に表示</b>されます（名前の横に「子B」「午前・子宮B（午後に実施）」と出ます）。「終わっていない人のみ表示」は<b>最初からチェックが入っていて</b>、まだ全部終わっていない人だけを表示します。全員を見たいときはチェックを外してください。</p>
 <div class="tip"><b>ポイント：</b>通過管理を開いている間は、画面を広く使えるよう上のタブ（カレンダー・日別予約など）が隠れます。ほかの画面に移るときは、左下の「☰ タブを表示」を押してください。</div>
 
-<h3>検査の状態（ステータス）</h3>
+<h3>検査の状態（ステータス）と色</h3>
 <table>
   <tr><th>表示</th><th>意味</th></tr>
-  <tr><td><span class="pill p-mi">未実施</span></td><td>初期状態。まだ着手していない（＝これから受ける検査）</td></tr>
-  <tr><td><span class="pill p-machi">待機中</span></td><td>その検査の前で待っている</td></tr>
-  <tr><td><span class="pill p-doing">実施中</span></td><td>検査中。開始時刻が自動で入ります</td></tr>
-  <tr><td><span class="pill p-done">完了</span></td><td>終了。終了時刻が自動で入ります</td></tr>
-  <tr><td><span class="pill p-hold">保留</span> / <span class="pill p-sai">再検査</span></td><td>保留・再検査</td></tr>
+  <tr><td><span class="pill p-mi">未実施</span>（青）</td><td>初期状態。まだ着手していない（＝これから受ける検査）</td></tr>
+  <tr><td><span class="pill p-machi">待機中</span>（黄）</td><td>その検査の前で待っている。<b>待機を始めた時刻</b>が自動で入ります</td></tr>
+  <tr><td><span class="pill p-doing">実施中</span>（赤）</td><td>検査中。開始時刻が自動で入ります</td></tr>
+  <tr><td><span class="pill p-done">完了</span>（グレー）</td><td>終了。終了時刻が自動で入ります</td></tr>
+  <tr><td><span class="pill p-hold">保留</span> / <span class="pill p-sai">再検査</span>（緑）</td><td>保留・再検査</td></tr>
 </table>
-<div class="tip">時刻表では、<b>白い「未実施」のマス＝これから受ける検査</b>、<b>グレーの斜線のマス＝この方は対象外（やらない検査）</b>です。</div>
+
+<h4>検査によって選べる状態が違います</h4>
+<table>
+  <tr><th>検査</th><th>選べる状態</th></tr>
+  <tr><td>来院</td><td>未実施・完了・保留</td></tr>
+  <tr><td>問診（問診票）</td><td>未実施・待機中・実施中・完了・<span class="pill p-help">ヘルプ</span></td></tr>
+  <tr><td>結果・MRI結果</td><td>未実施・<span class="pill p-help">看OK</span>・待機中・実施中・完了</td></tr>
+  <tr><td>エコー（腹部・乳・頸動脈）</td><td>未実施・待機中・<span class="pill p-doing">実施中1</span><span class="pill p-d2">実施中2</span><span class="pill p-d3">実施中3</span><span class="pill p-d4">実施中4</span>（部屋番号）・完了・保留・再検査</td></tr>
+  <tr><td>そのほかの検査</td><td>未実施・待機中・実施中・完了・保留・再検査</td></tr>
+</table>
+<div class="tip">時刻表では、<b>上段に時刻・下段に状態</b>が出ます（待機中＝待機開始時刻、実施中＝開始時刻、完了＝開始／終了時刻）。<b>グレーの斜線のマス＝この方は対象外（やらない検査）</b>です。</div>
+
+<h4>時刻表の並び順</h4>
+<ul>
+  <li>まだ来院していない方が上、来院が「完了」になった方は下へ移ります。全員の来院が終わると、<b>上から来院した順</b>に並びます。</li>
+  <li>検査の列は、来院〜診察 → 胃・CT・MRIなど → 婦人科・マッサージ・その他 → <b>誠寿司・CS・保健指導・結果・MRI結果</b>の順です（視野は通過管理から外しました）。</li>
+</ul>
 
 <h3>状態の変え方</h3>
 <ul>
-  <li><b>時刻表：</b>マスをクリックすると、6つの状態（未実施・待機中・実施中・完了・保留・再検査）から直接選べます。</li>
-  <li><b>部署ビュー：</b>状態ボタンを<b>ダブルクリックすると次へ進みます</b>（未実施→待機中→実施中→完了）。ボタン右の「▾」を1回クリックすると状態を直接選べます。</li>
+  <li><b>時刻表・配置ボード：</b>マスをクリックすると、その検査で選べる状態の一覧から直接選べます。</li>
+  <li><b>部署ビュー：</b>状態ボタンを<b>ダブルクリックすると次へ進みます</b>（未実施→待機中→実施中→完了。来院は未実施→完了、結果は未実施→看OK→待機中→実施中→完了）。エコーは待機中の次に部屋番号（実施中1〜4）を選ぶメニューが出ます。保留・ヘルプなどは、ボタン右の「▾」から選びます。</li>
 </ul>
 
 <h3>当日のキャンセル・追加</h3>

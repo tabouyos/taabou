@@ -742,7 +742,8 @@ async function sbLoadAll() {
           endAt: row.end_at || row.done_at || '',
           by: row.done_by || '',
           note: (row.note !== undefined && row.note !== null) ? row.note : (_ex.note || ''),
-          recumbent: (row.recumbent !== undefined && row.recumbent !== null) ? !!row.recumbent : !!_ex.recumbent
+          recumbent: (row.recumbent !== undefined && row.recumbent !== null) ? !!row.recumbent : !!_ex.recumbent,
+          waitAt: (row.wait_at !== undefined && row.wait_at !== null) ? row.wait_at : (_ex.waitAt || '')
         };
       });
       // SBに無い（同期前の）メモ・臥床のみのローカル記録も残す
@@ -2319,7 +2320,8 @@ function sbStartRealtime() {
         endAt: payload.new.end_at || payload.new.done_at || '',
         by: payload.new.done_by || '',
         note: (payload.new.note !== undefined && payload.new.note !== null) ? payload.new.note : (_ex.note || ''),
-        recumbent: (payload.new.recumbent !== undefined && payload.new.recumbent !== null) ? !!payload.new.recumbent : !!_ex.recumbent
+        recumbent: (payload.new.recumbent !== undefined && payload.new.recumbent !== null) ? !!payload.new.recumbent : !!_ex.recumbent,
+        waitAt: (payload.new.wait_at !== undefined && payload.new.wait_at !== null) ? payload.new.wait_at : (_ex.waitAt || '')
       };
     }
     saveLocal();
@@ -5440,17 +5442,16 @@ var OPT_STATIONS = [
   {key:'nyuecho',  label:'乳エコー',    cond:function(r){ return !!r.hasNyuecho; }},
   {key:'keidou',   label:'頚動脈',      cond:function(r){ return !!r.hasKeidou; }},
   {key:'kotsu',    label:'骨密度',      cond:function(r){ return !!r.hasKotsu; }},
-  {key:'cs',       label:'CS',          cond:function(r){ return !!r.hasDaicho; }},
   {key:'md',       label:'M-D',         cond:function(r){ return !!r.hasMD; }},
-  // ── M-Dの後に追加（他の検査と同じ扱い）──
-  {key:'hoken',    label:'保健指導',    cond:function(r){ return true; }},
-  {key:'sonota',   label:'その他',      cond:function(r){ return true; }},
-  {key:'shiya',    label:'視野',        cond:function(r){ return !!r.hasShiya; }},
   {key:'shikyu',   label:'婦人科',      cond:function(r){ return !!r.hasShikyu; }},
+  {key:'massage',  label:'マッサージ',  cond:function(r){ return !!r.hasMassage; }},
+  {key:'sonota',   label:'その他',      cond:function(r){ return true; }},
+  // ── 後半（2026/10 改善依頼）：誠寿司・CS・保健指導・結果・MRI結果。視野は通過管理から削除 ──
   {key:'seisushi', label:'誠寿司',      cond:function(r){ return r.seisushi==='yes'; }},
+  {key:'cs',       label:'CS',          cond:function(r){ return !!r.hasDaicho; }},
+  {key:'hoken',    label:'保健指導',    cond:function(r){ return true; }},
   {key:'kekka',    label:'結果',        cond:function(r){ return !!r.hasKekka; }},
-  {key:'mrikekka', label:'MRI結果',     cond:function(r){ return !!r.hasMRIKekka; }},
-  {key:'massage',  label:'マッサージ',  cond:function(r){ return !!r.hasMassage; }}
+  {key:'mrikekka', label:'MRI結果',     cond:function(r){ return !!r.hasMRIKekka; }}
 ];
 
 // ── 「次の案内」注意喚起：該当検査の前に終了しておくべき検査（キーで指定・編集可）──
@@ -5484,19 +5485,41 @@ function passPrereqCheck(resId, targetKey) {
    検査進捗：待機中 → 未実施 → 実施中 → 完了 → 保留 → 再検査（→ 待機中に戻る）
    問診進捗（問診票のみ）：待機中 → 未実施 → 確認済（→ 待機中に戻る）
    ※「待機中」は未クリック（記録なし）の状態です。 */
+/* 色（2026/10 改善依頼）：未実施=青／待機中=黄／実施中=赤／完了=グレー／保留・再検査=緑
+   追加ステータス：ヘルプ（問診）・看OK（結果）・実施中1〜4（エコー：赤／紫／橙／ピンク） */
 var PASS_STATUS_META = {
-  '':        {label:'未実施', bg:'#F8FAFC', color:'#475569'},
-  'machi':   {label:'待機中', bg:'#FFEDD5', color:'#C2410C'},
-  'doing':   {label:'実施中', bg:'#FEF3C7', color:'#B45309'},
-  'done':    {label:'完了',   bg:'#DCFCE7', color:'#059669'},
-  'hold':    {label:'保留',   bg:'#FEE2E2', color:'#B91C1C'},
-  'saikensa':{label:'再検査', bg:'#FFE4E6', color:'#BE123C'},
-  'kakunin': {label:'確認済', bg:'#DBEAFE', color:'#1D4ED8'},
-  'mijisshi':{label:'未実施', bg:'#F8FAFC', color:'#475569'}  // 旧データ互換（未実施扱い）
+  '':        {label:'未実施', bg:'#DBEAFE', color:'#1D4ED8', cell:'#EFF6FF'},
+  'machi':   {label:'待機中', bg:'#FEF08A', color:'#854D0E', cell:'#FEFCE8'},
+  'doing':   {label:'実施中', bg:'#FEE2E2', color:'#DC2626', cell:'#FEF2F2'},
+  'doing1':  {label:'実施中1', bg:'#FEE2E2', color:'#DC2626', cell:'#FEF2F2'},
+  'doing2':  {label:'実施中2', bg:'#F3E8FF', color:'#7E22CE', cell:'#FAF5FF'},
+  'doing3':  {label:'実施中3', bg:'#FFEDD5', color:'#EA580C', cell:'#FFF7ED'},
+  'doing4':  {label:'実施中4', bg:'#FCE7F3', color:'#DB2777', cell:'#FDF2F8'},
+  'done':    {label:'完了',   bg:'#E5E7EB', color:'#4B5563', cell:'#F3F4F6'},
+  'hold':    {label:'保留',   bg:'#DCFCE7', color:'#15803D', cell:'#F0FDF4'},
+  'saikensa':{label:'再検査', bg:'#DCFCE7', color:'#15803D', cell:'#F0FDF4'},
+  'help':    {label:'ヘルプ', bg:'#D1FAE5', color:'#047857', cell:'#ECFDF5'},
+  'kanok':   {label:'看OK',   bg:'#D1FAE5', color:'#047857', cell:'#ECFDF5'},
+  'kakunin': {label:'確認済', bg:'#E5E7EB', color:'#4B5563', cell:'#F3F4F6'},  // 旧データ互換（完了扱い）
+  'mijisshi':{label:'未実施', bg:'#DBEAFE', color:'#1D4ED8', cell:'#EFF6FF'}   // 旧データ互換（未実施扱い）
 };
-var EXAM_STATUS_CYCLE    = ['', 'machi', 'doing', 'done', 'hold', 'saikensa'];
-var MONSHIN_STATUS_CYCLE = ['', 'machi', 'kakunin'];
-function passCycleFor(st) { return st === 'monshin' ? MONSHIN_STATUS_CYCLE : EXAM_STATUS_CYCLE; }
+function passIsDoing(state) { return state === 'doing' || /^doing[1-4]$/.test(state || ''); }
+var ECHO_KEYS = ['fukuecho', 'nyuecho', 'keidou'];
+/* 検査ごとに選べるステータス（メニューの並び順） */
+function passStatusOptions(st) {
+  if (st === 'raiin')   return ['', 'done', 'hold'];
+  if (st === 'monshin') return ['', 'machi', 'doing', 'done', 'help'];
+  if (st === 'kekka' || st === 'mrikekka') return ['', 'kanok', 'machi', 'doing', 'done'];
+  if (ECHO_KEYS.indexOf(st) >= 0) return ['', 'machi', 'doing1', 'doing2', 'doing3', 'doing4', 'done', 'hold', 'saikensa'];
+  return ['', 'machi', 'doing', 'done', 'hold', 'saikensa'];
+}
+/* ダブルクリック／クリックで進む順番（保留・ヘルプ等はメニューから選ぶ） */
+function passCycleFor(st) {
+  if (st === 'raiin')   return ['', 'done'];
+  if (st === 'kekka' || st === 'mrikekka') return ['', 'kanok', 'machi', 'doing', 'done'];
+  if (ECHO_KEYS.indexOf(st) >= 0) return ['', 'machi', 'doing1', 'done'];
+  return ['', 'machi', 'doing', 'done'];
+}
 function passStatusLabel(state) { return (PASS_STATUS_META[state] || PASS_STATUS_META['']).label; }
 // 旧コード互換
 var PASS_STATE_LABEL = {'':'待機中', doing:'実施中', done:'完了'};
@@ -5577,15 +5600,13 @@ function passAdvance(resId, st) {
   if (!next) {
     // 待機中に戻す：ステータスはクリアするが、フリー欄・臥床メモは残す
     if (cur && (cur.note || cur.recumbent)) {
-      cur.state = ''; cur.startAt = ''; cur.endAt = ''; cur.by = by;
+      cur.state = ''; cur.startAt = ''; cur.endAt = ''; cur.waitAt = ''; cur.by = by;
     } else {
       delete passageData[k];
     }
   } else {
     if (!cur) cur = passageData[k] = {state:'', startAt:'', endAt:'', by:by, note:'', recumbent:false};
-    cur.state = next; cur.by = by;
-    if (next === 'doing' && !cur.startAt) cur.startAt = hhmm();
-    if (next === 'done') { if (!cur.startAt) cur.startAt = hhmm(); cur.endAt = hhmm(); }
+    passStampTimes(cur, next); cur.state = next; cur.by = by;
   }
   queuePassSync(resId, st);
   saveLocal();
@@ -5665,29 +5686,38 @@ function applyPassStatus(resId, st, target) {
   var k = passKey(resId, st);
   var cur = passageData[k];
   if (target === '') {
-    if (cur && (cur.note || cur.recumbent)) { cur.state=''; cur.startAt=''; cur.endAt=''; cur.by=by; }
+    if (cur && (cur.note || cur.recumbent)) { cur.state=''; cur.startAt=''; cur.endAt=''; cur.waitAt=''; cur.by=by; }
     else if (cur) delete passageData[k];
   } else {
-    if (!cur) cur = passageData[k] = {state:'', startAt:'', endAt:'', by:by, note:'', recumbent:false};
+    if (!cur) cur = passageData[k] = {state:'', startAt:'', endAt:'', by:by, note:'', recumbent:false, waitAt:''};
+    passStampTimes(cur, target);
     cur.state = target; cur.by = by;
-    if ((target==='doing' || target==='done') && !cur.startAt) cur.startAt = hhmm();
-    if (target==='done') cur.endAt = hhmm();
   }
   queuePassSync(resId, st);
 }
+/* 状態が変わったときの時刻記録：待機中＝待機開始／実施中・ヘルプ＝開始／完了＝終了 */
+function passStampTimes(cur, target) {
+  var now = hhmm();
+  if (target === 'machi' && cur.state !== 'machi') cur.waitAt = now;
+  if ((passIsDoing(target) || target === 'help') && !cur.startAt) cur.startAt = now;
+  if (target === 'done') { if (!cur.startAt) cur.startAt = now; cur.endAt = now; }
+}
 function setPassStatus(resId, st, target) {
   var curState = passState(resId, st);
-  var firstGuide = (target === 'doing' || target === 'machi') && (curState === '' || curState === 'mijisshi');
+  var firstGuide = (passIsDoing(target) || target === 'machi') && (curState === '' || curState === 'mijisshi' || curState === 'kanok');
   if (firstGuide && !passPrereqCheck(resId, st)) { closePassMenu(); return; }
   applyPassStatus(resId, st, target);
   closePassMenu();
   saveLocal();
   renderPassage();
 }
-// 部署ビュー：ダブルクリックで次の状態へ（未実施→待機中→実施中→完了、問診は確認済）
-function passDeptAdvance(resId, st) {
-  var order = (st === 'monshin') ? ['', 'machi', 'kakunin'] : ['', 'machi', 'doing', 'done'];
+// 部署ビュー：ダブルクリックで次の状態へ（未実施→待機中→実施中→完了。来院は未実施→完了、結果は看OKを経由）
+// エコーは待機中の次に「実施中1〜4」を選ぶメニューを開く
+function passDeptAdvance(resId, st, ev) {
+  var order = passCycleFor(st);
   var cur = passState(resId, st);
+  if (ECHO_KEYS.indexOf(st) >= 0 && cur === 'machi') { openPassStatusMenu(resId, st, ev); return; }
+  if (passIsDoing(cur)) cur = order.filter(passIsDoing)[0] || cur;
   var i = order.indexOf(cur); if (i < 0) i = 0;
   var next = order[(i + 1) % order.length];
   setPassStatus(resId, st, next);
@@ -5706,7 +5736,7 @@ function setGroupAll(resId, grpId, target) {
 function openGroupAggMenu(resId, grpId, ev) {
   if (ev) ev.stopPropagation();
   closePassMenu();
-  var opts = [['','未実施'],['machi','待機中'],['doing','実施中'],['done','完了'],['hold','保留'],['saikensa','再検査']];
+  var opts = passStatusOptions('fukuecho').map(function(k){ return [k, passStatusLabel(k)]; });
   var html = '<div id="pass-menu" style="position:fixed;z-index:300;background:#fff;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px;min-width:190px;">'
     + '<div style="font-size:11px;color:#94a3b8;padding:2px 6px 5px;font-weight:700;">エコー全体を一括変更</div>';
   opts.forEach(function(o){
@@ -5728,10 +5758,7 @@ function closePassMenu() { var m = document.getElementById('pass-menu'); if (m) 
 function openPassStatusMenu(resId, st, ev) {
   if (ev) ev.stopPropagation();
   closePassMenu();
-  var isMonshin = (st === 'monshin');
-  var opts = isMonshin
-    ? [['','未実施'],['machi','待機中'],['kakunin','確認済']]
-    : [['','未実施'],['machi','待機中'],['doing','実施中'],['done','完了'],['hold','保留'],['saikensa','再検査']];
+  var opts = passStatusOptions(st).map(function(k){ return [k, passStatusLabel(k)]; });
   var cur = passState(resId, st);
   var html = '<div id="pass-menu" style="position:fixed;z-index:300;background:#fff;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px;min-width:170px;">'
     + '<div style="font-size:11px;color:#94a3b8;padding:2px 6px 5px;font-weight:700;">'+esc(passStationLabelOf(st))+'</div>';
@@ -5771,24 +5798,28 @@ async function flushPassSync() {
   passFlushTimer = null;
   if (!SB_READY || !PASSAGE_SYNC_READY) return;
   var pend = passPend; passPend = {};
-  var upsFull = [], upsBasic = [], dels = [];
+  var upsFull = [], upsMid = [], upsBasic = [], dels = [];
   Object.keys(pend).forEach(function(k) {
     var p = pend[k], rec = passageData[k];
     if (rec) {
       var basic = {reservation_id:p.resId, station:p.st, state:rec.state||'',
                    start_at:rec.startAt||'', end_at:rec.endAt||'', done_by:rec.by||''};
       upsBasic.push(basic);
-      upsFull.push(Object.assign({}, basic, {note:rec.note||'', recumbent:!!rec.recumbent}));
+      upsMid.push(Object.assign({}, basic, {note:rec.note||'', recumbent:!!rec.recumbent}));
+      upsFull.push(Object.assign({}, basic, {note:rec.note||'', recumbent:!!rec.recumbent, wait_at:rec.waitAt||''}));
     } else dels.push(p);
   });
   try {
     if (upsFull.length > 0) {
       var res = await SB.from('passage_records').upsert(upsFull, {onConflict:'reservation_id,station'});
       if (res.error) {
-        // note/recumbent 列が未作成の場合などは基本項目のみで再試行
-        // （フリー欄・臥床フラグはこの端末に保存されます。全PC同期するにはSQLで列追加）
-        var res2 = await SB.from('passage_records').upsert(upsBasic, {onConflict:'reservation_id,station'});
-        if (res2.error) console.error('[SB] passage upsert', res2.error);
+        // wait_at 列が未作成なら待機時刻なしで、note/recumbent も無ければ基本項目のみで再試行
+        // （その項目はこの端末に保存されます。全PC同期するにはSQLで列追加）
+        var res1 = await SB.from('passage_records').upsert(upsMid, {onConflict:'reservation_id,station'});
+        if (res1.error) {
+          var res2 = await SB.from('passage_records').upsert(upsBasic, {onConflict:'reservation_id,station'});
+          if (res2.error) console.error('[SB] passage upsert', res2.error);
+        }
       }
     }
     for (var i = 0; i < dels.length; i++) {
@@ -5817,7 +5848,7 @@ function passProgress(r) {
   sts.forEach(function(s) {
     var st = passState(r.id, s.key);
     if (passStationComplete(s.key, st)) done++;
-    else if (st === 'doing') doing++;
+    else if (passIsDoing(st)) doing++;
   });
   return {done:done, doing:doing, total:sts.length};
 }
@@ -5831,12 +5862,18 @@ function passFullyDone(r) {
 // ── 通過管理 表示モード（全体図／詳細表）と 午前/午後 フィルタ ──
 var passViewMode = 'overview'; // 'overview'（配置ボード） | 'detail'（時刻表）
 var passViewSlot = (new Date().getHours() < 13 ? 'am' : 'pm'); // 'am' | 'pm' | 'all'
-var passShowAllCols = true; // 時刻表：true=全27項目 / false=その日使う項目のみ
+var passShowAllCols = true; // 時刻表：true=全項目 / false=その日使う項目のみ
 function setPassShowAllCols(v) { passShowAllCols = v; renderPassage(); }
 var passOnlyPending = true; // true=終わっていない人だけ表示（初期値） / false=全体
 function setPassOnlyPending(v) { passOnlyPending = v; renderPassage(); }
 function setPassView(mode) { passViewMode = mode; renderPassage(); }
 function setPassSlot(slot) { passViewSlot = slot; renderPassage(); }
+/* 午前／午後の絞り込み。子宮B（院内の婦人科）は必ず午後に行うため、午前の方も「午後」に表示する */
+function passIsShikyuPm(r) { return !!r.hasShikyu && r.timeSlot === 'am'; }
+function passInSlot(r) {
+  if (passViewSlot === 'all' || r.timeSlot === passViewSlot) return true;
+  return passViewSlot === 'pm' && passIsShikyuPm(r);
+}
 
 // 検査ごとの色（同じ検査＝同じ色。次の行き先のかたまりが見えるように）
 var STATION_PALETTE = [
@@ -5865,10 +5902,10 @@ function passNext(r) {
   var nowLabel=null, nextLabel=null, nextKey=null, remaining=0;
   order.forEach(function(s){
     var st = passState(r.id, s.key) || '';
-    if (st==='doing' && !nowLabel) nowLabel = s.label;
+    if (passIsDoing(st) && !nowLabel) nowLabel = s.label;
     if (!passStationComplete(s.key, st)) {
       remaining++;
-      if (!nextLabel && st!=='doing') { nextLabel = s.label; nextKey = s.key; }
+      if (!nextLabel && !passIsDoing(st)) { nextLabel = s.label; nextKey = s.key; }
     }
   });
   return {nowLabel:nowLabel, nextLabel:nextLabel, nextKey:nextKey, remaining:remaining, total:order.length};
@@ -5904,16 +5941,7 @@ function passPersonTimes(r) {
   };
 }
 // ステータスのピル表示（一覧マトリクス用・きれいな丸ピル）
-var PASS_PILL = {
-  '':        {label:'未実施', bg:'#F1F5F9', color:'#64748B'},
-  'machi':   {label:'待機中', bg:'#FFEDD5', color:'#C2410C'},
-  'doing':   {label:'実施中', bg:'#DBEAFE', color:'#1D4ED8'},
-  'done':    {label:'完了',   bg:'#DCFCE7', color:'#059669'},
-  'hold':    {label:'保留',   bg:'#FEE2E2', color:'#B91C1C'},
-  'saikensa':{label:'再検査', bg:'#FFE4E6', color:'#BE123C'},
-  'kakunin': {label:'確認済', bg:'#DBEAFE', color:'#1D4ED8'},
-  'mijisshi':{label:'未実施', bg:'#F1F5F9', color:'#64748B'}
-};
+var PASS_PILL = PASS_STATUS_META;  // 色・表示名は PASS_STATUS_META に一本化
 function passPillHTML(stt) {
   var m = PASS_PILL[stt] || PASS_PILL[''];
   return '<span style="display:inline-block;min-width:52px;padding:3px 7px;border-radius:14px;font-size:11.5px;font-weight:700;'
@@ -5921,30 +5949,34 @@ function passPillHTML(stt) {
 }
 // 各部署の「入り（開始）／出（終了）」2段表示（紙の運用に合わせる）
 function passCellBg(stt) {
-  return stt==='done' ? '#F0FDF4' : stt==='doing' ? '#FEF9E7' : stt==='machi' ? '#FFF7ED' : stt==='hold' ? '#FEF2F2'
-       : stt==='saikensa' ? '#FFF1F2' : stt==='kakunin' ? '#EFF6FF' : '#fff';
+  return (PASS_STATUS_META[stt] || PASS_STATUS_META['']).cell;
 }
 function passTimeCell(stt, rec) {
-  if (stt === '' || stt === 'mijisshi') return '<div style="color:#64748b;font-size:8.5px;line-height:2.4;font-weight:600;">未実施</div>';
-  if (stt === 'machi') return '<div style="color:#C2410C;font-size:9px;line-height:2.4;font-weight:700;">待機</div>';
-  if (stt === 'kakunin') return '<div style="color:#1D4ED8;font-weight:700;font-size:9px;line-height:2.4;">確認済</div>';
-  var s = rec && rec.startAt ? rec.startAt : '';
-  var e = rec && rec.endAt ? rec.endAt : '';
-  var tag = stt === 'hold' ? '<div style="font-size:8px;color:#B91C1C;font-weight:700;">保留</div>'
-          : stt === 'saikensa' ? '<div style="font-size:8px;color:#BE123C;font-weight:700;">再検</div>' : '';
-  var line2 = e ? '<span style="color:#059669;">' + esc(e) + '</span>'
-                : (stt === 'doing' ? '<span style="color:#93a3b8;font-size:7.5px;">実施中</span>' : '&nbsp;');
-  return '<div style="font-family:\'SFMono-Regular\',Menlo,Consolas,monospace;font-size:9.5px;line-height:1.3;letter-spacing:-0.3px;">'
-    + '<div style="font-weight:700;color:#334155;">' + (s ? esc(s) : '&nbsp;') + '</div>'
-    + '<div>' + line2 + '</div></div>' + tag;
+  // 上段＝時刻、下段＝状態名（色付き）。待機中は待機開始時刻、実施中は開始時刻、完了等は開始／終了
+  var m = PASS_STATUS_META[stt] || PASS_STATUS_META[''];
+  var mono = 'font-family:\'SFMono-Regular\',Menlo,Consolas,monospace;';
+  function wrap(l1, l2) {
+    return '<div style="' + mono + 'font-size:9.5px;line-height:1.3;letter-spacing:-0.3px;">'
+      + '<div style="font-weight:700;color:#334155;">' + (l1 || '&nbsp;') + '</div>'
+      + '<div>' + l2 + '</div></div>';
+  }
+  function tag(t) { return '<span style="color:' + m.color + ';font-size:8px;font-weight:700;font-family:inherit;">' + t + '</span>'; }
+  var s = rec && rec.startAt ? esc(rec.startAt) : '';
+  var e = rec && rec.endAt ? esc(rec.endAt) : '';
+  if (stt === '' || stt === 'mijisshi') return '<div style="color:' + m.color + ';font-size:8.5px;line-height:2.4;font-weight:600;">未実施</div>';
+  if (stt === 'machi') return wrap(rec && rec.waitAt ? esc(rec.waitAt) : '', tag('待機中'));
+  if (stt === 'kanok') return '<div style="color:' + m.color + ';font-size:9px;line-height:2.4;font-weight:700;">看OK</div>';
+  if (passIsDoing(stt) || stt === 'help') return wrap(s, tag(m.label));
+  if (stt === 'done' || stt === 'kakunin') return wrap(s, '<span style="color:#4B5563;">' + (e || '&nbsp;') + '</span>');
+  // 保留・再検査：開始／終了＋状態名
+  return wrap(s, (e ? '<span style="color:#4B5563;">' + e + '</span> ' : '') + tag(m.label));
 }
 // 一覧マトリクスの印刷（別ウィンドウ）
 function passPrint() {
   var date = selectedDate || todayStr();
   var slotName = passViewSlot==='am' ? '午前' : passViewSlot==='pm' ? '午後' : '全体';
   var list = reservations.filter(function(r){
-    return r.date===date && (r.status==='reserved'||r.status==='changed')
-      && (passViewSlot==='all' || r.timeSlot===passViewSlot);
+    return r.date===date && (r.status==='reserved'||r.status==='changed') && passInSlot(r);
   });
   list.sort(function(a,b){
     var da=passFullyDone(a)?1:0, db=passFullyDone(b)?1:0; if(da!==db)return da-db;
@@ -5964,10 +5996,12 @@ function passPrint() {
       if (stt === '') return '<td></td>';
       if (stt === 'mijisshi') return '<td>未</td>';
       if (stt === 'kakunin') return '<td>確認済</td>';
+      if (stt === 'machi') return '<td style="background:'+passCellBg(stt)+';"><div class="t">'+esc(rec.waitAt||'')+'</div><div class="tg">待機中</div></td>';
+      if (stt === 'kanok') return '<td>看OK</td>';
       var s = rec && rec.startAt ? rec.startAt : '';
       var e = rec && rec.endAt ? rec.endAt : '';
-      var tag = stt==='hold' ? '<div class="tg">保留</div>' : stt==='saikensa' ? '<div class="tg">再検査</div>' : '';
-      var bg = stt==='done' ? '#F0FDF4' : stt==='doing' ? '#EFF6FF' : (stt==='hold'||stt==='saikensa') ? '#FEF2F2' : '#fff';
+      var tag = (stt==='done') ? '' : '<div class="tg">'+esc(passStatusLabel(stt))+'</div>';
+      var bg = passCellBg(stt);
       return '<td style="background:'+bg+';"><div class="t">'+esc(s||'')+'</div><div class="t">'+esc(e||'')+'</div>'+tag+'</td>';
     }).join('');
     return '<tr><td>'+(i+1)+'</td><td class="nm">'+esc(dispName(r))+'</td>'
@@ -6101,7 +6135,7 @@ function groupAgg(r, grp) {
   var keys = grp.members.map(function(m){return m.key;}).filter(function(k){ return passApplies(r,k); });
   if (!keys.length) return null;
   var doneN = keys.filter(function(k){ return passStationComplete(k, passState(r.id,k)); }).length;
-  var anyDoing = keys.some(function(k){ return passState(r.id,k)==='doing'; });
+  var anyDoing = keys.some(function(k){ return passIsDoing(passState(r.id,k)); });
   if (doneN === keys.length) return {label:'完了', state:'done'};
   if (anyDoing) return {label: doneN>0 ? '検査中（一部完了）' : '検査中', state:'doing'};
   if (doneN > 0) return {label:'待機中（一部完了）', state:'machi'};
@@ -6121,11 +6155,11 @@ function passStationHTML(key, list) {
   applicable.forEach(function(r){
     var st = passState(r.id, key) || '';
     if (passStationComplete(key, st)) done++;
-    else if (st==='doing') doing++;
+    else if (passIsDoing(st)) doing++;
     else waiting++;
   });
   var remaining = waiting + doing;
-  function ord(r){ var st=passState(r.id,key)||''; return passStationComplete(key,st)?2:(st==='doing'?0:1); }
+  function ord(r){ var st=passState(r.id,key)||''; return passStationComplete(key,st)?2:(passIsDoing(st)?0:1); }
   applicable.sort(function(a,b){ var oa=ord(a),ob=ord(b); if(oa!==ob)return oa-ob; return (a.createdAt||'')<(b.createdAt||'')?-1:1; });
 
   var slotName = passViewSlot==='am' ? '午前' : passViewSlot==='pm' ? '午後' : '全体';
@@ -6148,9 +6182,10 @@ function passStationHTML(key, list) {
     var age = ageFromBirth(r.birth);
     var ageGender = (age!=null?age+'歳 ':'') + (r.gender==='male'?'男性':r.gender==='female'?'女性':'');
     var timeType = (r.timeSlot==='am'?'午前':r.timeSlot==='pm'?'午後':'—') + (r.examTypeName?'・'+esc(r.examTypeName):(r.isKenshin?'・健診':''));
-    var subInfo = (st==='doing' && rec && rec.startAt) ? '<div style="font-size:11px;color:#EA580C;font-weight:700;">開始: '+esc(rec.startAt)+'</div>'
+    var subInfo = (passIsDoing(st) && rec && rec.startAt) ? '<div style="font-size:11px;color:#DC2626;font-weight:700;">開始: '+esc(rec.startAt)+'</div>'
+                : (st==='machi' && rec && rec.waitAt) ? '<div style="font-size:11px;color:#854D0E;font-weight:700;">待機: '+esc(rec.waitAt)+'〜</div>'
                 : (isDone && rec) ? '<div style="font-size:11px;color:#059669;">終了: '+esc(rec.endAt||rec.startAt||'')+'</div>' : '';
-    var rowBg = st==='doing' ? '#FFFBEB' : isDone ? '#F6FEF9' : '#fff';
+    var rowBg = isDone ? '#F9FAFB' : passCellBg(st);
     var recu = !!(rec && rec.recumbent);
     var recuBtn = isSaiketsu
       ? '<button onclick="togglePassRecumbent(\''+r.id+'\')" title="臥床採血" style="border:1px solid '+(recu?'#B45309':'#cbd5e1')+';background:'+(recu?'#FEF3C7':'#fff')+';color:'+(recu?'#B45309':'#94a3b8')+';border-radius:6px;padding:6px 8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">'+(recu?'☑臥床':'☐臥床')+'</button>'
@@ -6160,7 +6195,7 @@ function passStationHTML(key, list) {
       + '<div style="width:76px;font-size:11px;color:#64748b;line-height:1.3;">'+esc(ageGender)+'</div>'
       + '<div onclick="openPassDetail(\''+r.id+'\')" title="クリックでメモ・次回予約など" style="min-width:100px;font-size:17px;font-weight:700;cursor:pointer;">'+esc(dispName(r))+'</div>'
       + '<div style="display:flex;">'
-      + '<button ondblclick="passDeptAdvance(\''+r.id+'\',\''+key+'\')" title="ダブルクリックで次へ（待機中→実施中→完了）" style="border:1px solid '+m.color+';background:'+m.bg+';color:'+m.color+';border-radius:8px 0 0 8px;padding:8px 14px;font-size:14px;font-weight:800;cursor:pointer;white-space:nowrap;">'+m.label+'</button>'
+      + '<button ondblclick="passDeptAdvance(\''+r.id+'\',\''+key+'\',event)" title="ダブルクリックで次へ（待機中→実施中→完了）" style="border:1px solid '+m.color+';background:'+m.bg+';color:'+m.color+';border-radius:8px 0 0 8px;padding:8px 14px;font-size:14px;font-weight:800;cursor:pointer;white-space:nowrap;">'+m.label+'</button>'
       + '<button onclick="openPassStatusMenu(\''+r.id+'\',\''+key+'\',event)" title="状態を選ぶ" style="border:1px solid '+m.color+';border-left:none;background:'+m.bg+';color:'+m.color+';border-radius:0 8px 8px 0;padding:8px 7px;font-size:12px;cursor:pointer;">▾</button>'
       + '</div>'
       + recuBtn
@@ -6228,7 +6263,7 @@ function passGroupStationHTML(grp, list) {
     var rec = passGet(r.id, m.key);
     var s = rec && rec.startAt ? rec.startAt : '–';
     var e = rec && rec.endAt ? rec.endAt : '–';
-    return '<td onclick="openPassStatusMenu(\''+r.id+'\',\''+m.key+'\',event)" ondblclick="passDeptAdvance(\''+r.id+'\',\''+m.key+'\')" title="クリックで選択／ダブルクリックで次へ" style="border:1px solid #eef2f7;padding:6px 8px;cursor:pointer;background:'+passCellBg(st)+';vertical-align:top;">'
+    return '<td onclick="openPassStatusMenu(\''+r.id+'\',\''+m.key+'\',event)" ondblclick="passDeptAdvance(\''+r.id+'\',\''+m.key+'\',event)" title="クリックで選択／ダブルクリックで次へ" style="border:1px solid #eef2f7;padding:6px 8px;cursor:pointer;background:'+passCellBg(st)+';vertical-align:top;">'
       + '<div style="font-weight:700;font-size:12.5px;color:'+pm.color+';white-space:nowrap;">'+pm.label+'</div>'
       + '<div style="font-size:10px;color:#94a3b8;line-height:1.5;">開始 '+esc(s)+'<br>終了 '+esc(e)+'</div>'
       + '</td>';
@@ -6293,8 +6328,7 @@ function renderPassage() {
   if (!el) return;
   var date = selectedDate || todayStr();
   var list = reservations.filter(function(r) {
-    return r.date === date && (r.status === 'reserved' || r.status === 'changed')
-      && (passViewSlot === 'all' || r.timeSlot === passViewSlot);
+    return r.date === date && (r.status === 'reserved' || r.status === 'changed') && passInSlot(r);
   });
   // 並び順：①完了した人は一番下へ ②AM→PM→未設定 ③登録順
   list.sort(function(a,b) {
@@ -6327,7 +6361,7 @@ function renderPassage() {
     totalDone += p.done; totalAll += p.total; nowDoing += p.doing;
     if (passFullyDone(r)) finished++;
     if (passState(r.id, 'raiin') === 'done') received++;
-    if (stationsFor(r).some(function(s){ return passState(r.id, s.key) === 'doing'; })) peopleDoing++;
+    if (stationsFor(r).some(function(s){ return passIsDoing(passState(r.id, s.key)); })) peopleDoing++;
   });
   var remaining = list.length - finished; // まだ館内にいる（受診中の）人数。全員終わると0
 
@@ -6360,7 +6394,7 @@ function renderPassage() {
     + (passViewMode==='detail'
         ? '<div style="width:1px;height:24px;background:#e2e8f0;"></div>'
           + '<div style="display:flex;gap:4px;">'
-          + tabBtn(passShowAllCols,'全27項目',"setPassShowAllCols(true)")
+          + tabBtn(passShowAllCols,'全'+(FIXED_STATIONS.length+OPT_STATIONS.length)+'項目',"setPassShowAllCols(true)")
           + tabBtn(!passShowAllCols,'使う項目のみ',"setPassShowAllCols(false)")
           + '</div>'
         : '')
@@ -6411,12 +6445,22 @@ function renderPassage() {
     return;
   }
 
-  h += '<div style="font-size:12px;color:#64748b;margin-bottom:8px;">各検査マスをクリックすると状態を選べます（<strong>未実施→待機中→実施中→完了→保留→再検査</strong>）。'
-    + '<strong>実施中で開始時刻（上段）、完了で終了時刻（下段）</strong>が自動で入ります。'
+  h += '<div style="font-size:12px;color:#64748b;margin-bottom:8px;">各検査マスをクリックすると状態を選べます（来院・問診・結果・エコーは専用の選択肢）。'
+    + '<strong>待機中で待機開始時刻、実施中で開始時刻（上段）、完了で終了時刻（下段）</strong>が自動で入ります。'
     + '当日キャンセルはマスのメニューから「対象外」、追加は「—」のマスをクリック。'
     + '<strong>受診者名クリック</strong>でメモ・臥床採血。検査名（見出し）クリックで部署ビュー。完了した方は下へ移動します。</div>';
 
   var showCols = passShowAllCols ? cols : activeCols;
+  // 時刻表の並び：来院前の方が上、来院済みの方は下へ（来院時刻の早い順）。全員来院後は来院順に並ぶ
+  function raiinTime(r) { var rc = passGet(r.id, 'raiin'); return rc && rc.state === 'done' ? (rc.endAt || rc.startAt || '99:99') : ''; }
+  dispList = dispList.slice().sort(function(a, b) {
+    var da = passFullyDone(a) ? 1 : 0, db = passFullyDone(b) ? 1 : 0;
+    if (da !== db) return da - db;
+    var ta = raiinTime(a), tb = raiinTime(b);
+    if (!ta !== !tb) return ta ? 1 : -1;
+    if (ta !== tb) return ta < tb ? -1 : 1;
+    return (a.createdAt || '') < (b.createdAt || '') ? -1 : 1;
+  });
   h += '<div style="overflow-y:auto;overflow-x:hidden;max-height:76vh;"><table style="border-collapse:separate;border-spacing:0;font-size:11px;width:100%;table-layout:fixed;">'
     + '<thead><tr>'
     + '<th style="position:sticky;top:0;left:0;z-index:5;background:#F1F5F9;border:1px solid #e2e8f0;padding:5px 2px;white-space:nowrap;font-size:10px;width:26px;">No.</th>'
@@ -6439,7 +6483,8 @@ function renderPassage() {
       + '<td onclick="openPassDetail(\'' + r.id + '\')" title="クリックでメモ・臥床の入力へ" style="position:sticky;left:26px;z-index:1;background:' + rowBg + ';border:1px solid #e2e8f0;padding:3px 4px;white-space:nowrap;cursor:pointer;width:82px;max-width:82px;overflow:hidden;text-overflow:ellipsis;">'
       + '<span style="font-weight:700;font-size:11px;">' + esc(dispName(r)) + '</span>'
       + (allDone ? ' <span class="badge bd-green" style="font-size:8px;">済</span>' : '')
-      + '<span style="font-size:8px;color:#94a3b8;margin-left:2px;">' + slotTag + '</span></td>'
+      + '<span style="font-size:8px;color:#94a3b8;margin-left:2px;">' + slotTag + '</span>'
+      + (passIsShikyuPm(r) ? '<span title="子宮B（院内）は午後に実施" style="font-size:8px;color:#BE185D;font-weight:700;margin-left:2px;">子B</span>' : '') + '</td>'
       + '<td style="position:sticky;left:108px;z-index:1;background:' + rowBg + ';border:1px solid #e2e8f0;padding:3px 2px;text-align:center;font-size:10px;width:22px;">' + (r.gender === 'male' ? '男' : r.gender === 'female' ? '女' : '') + '</td>';
 
     showCols.forEach(function(c) {
@@ -6463,16 +6508,21 @@ function renderPassage() {
   });
   h += '</tbody></table></div>'
     + '<div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:#475569;align-items:center;">'
-    + '<span style="font-family:monospace;background:#EFF6FF;border-radius:4px;padding:2px 6px;">08:23<br>—</span> 実施中（開始のみ）'
-    + '<span style="font-family:monospace;background:#F0FDF4;border-radius:4px;padding:2px 6px;">08:23<br>08:26</span> 完了（開始／終了）'
-    + '<span><span style="background:#FEF2F2;color:#B91C1C;font-weight:700;border-radius:4px;padding:2px 6px;font-size:10px;">保留</span> / <span style="background:#FFF1F2;color:#BE123C;font-weight:700;border-radius:4px;padding:2px 6px;font-size:10px;">再検査</span></span>'
-    + '<span><span style="display:inline-block;width:24px;height:15px;vertical-align:middle;background:#fff;border:1px solid #e2e8f0;color:#64748b;font-size:8px;font-weight:600;text-align:center;line-height:15px;">未実施</span> やる（未着手）　<span style="display:inline-block;width:24px;height:15px;vertical-align:middle;background:repeating-linear-gradient(45deg,#EEF2F6,#EEF2F6 4px,#DFE5EC 4px,#DFE5EC 8px);border:1px solid #e2e8f0;"></span> やらない（対象外）</span>'
+    + passLegendHTML()
     + '<span><span style="color:#F59E0B;">●</span>メモあり　<span style="color:#B45309;font-weight:700;">臥</span>臥床採血</span>'
     + '<span style="margin-left:auto;color:#94a3b8;font-size:11px;">マスをクリック→開始→終了を記録／受診者名クリック→メモ・臥床</span>'
     + '</div></div></div>';
   el.innerHTML = h;
 }
 
+// 状態の色の凡例（時刻表・配置ボード共通）
+function passLegendHTML() {
+  return ['', 'machi', 'doing', 'done', 'hold', 'saikensa', 'help', 'kanok', 'doing1', 'doing2', 'doing3', 'doing4'].map(function(k){
+    var m = PASS_STATUS_META[k];
+    return '<span style="display:inline-block;background:'+m.bg+';color:'+m.color+';font-weight:700;border-radius:4px;padding:2px 6px;font-size:10.5px;">'+m.label+'</span>';
+  }).join(' ')
+  + ' <span><span style="display:inline-block;width:24px;height:15px;vertical-align:middle;background:repeating-linear-gradient(45deg,#EEF2F6,#EEF2F6 4px,#DFE5EC 4px,#DFE5EC 8px);border:1px solid #e2e8f0;"></span> 対象外</span>';
+}
 // 全体図＝配置ボード（名前→残り数→残っている検査を一望。タブレット対応）
 function passOverviewHTML(list, cols) {
   // 完了は下、それ以外は登録（受付）順で安定表示
@@ -6490,13 +6540,14 @@ function passOverviewHTML(list, cols) {
     var chips = remaining.map(function(s){
       var st = passState(r.id, s.key) || '';
       var pm = PASS_PILL[st] || PASS_PILL[''];
-      var tag = st==='doing'?' ●':st==='machi'?' 待':st==='hold'?' 保':st==='saikensa'?' 再':'';
+      var tag = passIsDoing(st)?' ●'+(st.length>5?st.slice(5):''):st==='machi'?' 待':st==='hold'?' 保':st==='saikensa'?' 再':st==='help'?' ヘルプ':st==='kanok'?' 看OK':'';
       var isNext = (s.key === nx.nextKey);
       return '<span onclick="openPassStatusMenu(\''+r.id+'\',\''+s.key+'\',event)" title="タップで'+esc(s.label)+'の状態を選ぶ（開始・完了など）" style="display:inline-block;cursor:pointer;background:'+pm.bg+';color:'+pm.color+';border:'+(isNext?'2px solid '+pm.color:'1px solid #e2e8f0')+';border-radius:14px;padding:4px 11px;margin:2px;font-size:12.5px;font-weight:'+(isNext?'800':'600')+';white-space:nowrap;">'+(isNext?'→ ':'')+esc(s.label)+tag+' ▾</span>';
     }).join('');
     if (!chips) chips = '<span style="color:#059669;font-weight:700;font-size:12px;">✓ すべて完了</span>';
     var rowBg = allDone ? '#F6FEF9' : (i % 2 ? '#FCFCFD' : '#fff');
-    var nowTag = nx.nowLabel ? '<span style="font-size:10px;color:#B45309;font-weight:700;white-space:nowrap;">今:'+esc(nx.nowLabel)+'</span>' : '';
+    var nowTag = (nx.nowLabel ? '<span style="font-size:10px;color:#DC2626;font-weight:700;white-space:nowrap;">今:'+esc(nx.nowLabel)+'</span>' : '')
+      + (passIsShikyuPm(r) ? ' <span style="font-size:10px;color:#BE185D;font-weight:700;white-space:nowrap;">午前・子宮B（午後に実施）</span>' : '');
     return '<tr style="background:' + rowBg + ';' + (allDone?'opacity:.7;':'') + 'cursor:pointer;" onclick="openPassDetail(\''+r.id+'\')" title="クリックで詳細（メモ・次回予約）">'
       + '<td style="padding:6px 6px;text-align:center;color:#94a3b8;font-size:12px;border-bottom:1px solid #eef2f7;vertical-align:top;">' + (i+1) + '</td>'
       + '<td style="padding:6px 8px;white-space:nowrap;font-weight:800;font-size:16px;border-bottom:1px solid #eef2f7;vertical-align:top;">' + esc(dispName(r)) + '<div>'+nowTag+'</div></td>'
@@ -6514,7 +6565,8 @@ function passOverviewHTML(list, cols) {
     + '</tr></thead>';
 
   var legend = '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:11.5px;color:#64748b;align-items:center;">'
-    + '<span>各行に、その人がまだ終えていない検査を表示します。<b>「→」が次に行く場所</b>、<span style="color:#C2410C;font-weight:700;">待</span>＝待機中／<span style="color:#1D4ED8;font-weight:700;">●</span>＝実施中／<span style="color:#B91C1C;font-weight:700;">保</span>＝保留／<span style="color:#BE123C;font-weight:700;">再</span>＝再検査。</span>'
+    + '<span>各行に、その人がまだ終えていない検査を表示します。<b>「→」が次に行く場所</b>、待＝待機中／●＝実施中（数字はエコーの部屋）／保＝保留／再＝再検査。</span>'
+    + '<span>' + passLegendHTML() + '</span>'
     + '<span style="margin-left:auto;color:#94a3b8;">受診者名クリックで詳細（メモ・次回予約）。</span>'
     + '</div>';
 
