@@ -5440,7 +5440,7 @@ var FIXED_STATIONS = [
 /* 予約内容に応じて表示する検査（cond=その予約に該当するかの判定）※動線順 */
 var OPT_STATIONS = [
   {key:'ixp',      label:'胃XP',        cond:function(r){ return r.stomachExamType==='barium'; }},
-  {key:'igf',      label:'胃GF',        cond:function(r){ return r.stomachExamType==='camera'; }},
+  {key:'igf',      label:'胃GS',        cond:function(r){ return r.stomachExamType==='camera'; }},
   {key:'ct',       label:'CT',          cond:function(r){ return !!r.hasCT; }},
   {key:'mri',      label:'MRI',         cond:function(r){ return !!r.hasMRI || !!r.hasMRCP || !!r.hasDWIBS; }},
   {key:'ninchi',   label:'認知',        cond:function(r){ return !!r.hasNinchi; }},
@@ -5448,23 +5448,23 @@ var OPT_STATIONS = [
   {key:'nyuecho',  label:'乳エコー',    cond:function(r){ return !!r.hasNyuecho; }},
   {key:'keidou',   label:'頚動脈',      cond:function(r){ return !!r.hasKeidou; }},
   {key:'kotsu',    label:'骨密度',      cond:function(r){ return !!r.hasKotsu; }},
+  // ── 後半（2026/10/14 指定）：M-D→誠寿司→CS→保健指導→その他→結果→MRI結果→マッサージ、婦人科（午後）は最後。視野は削除 ──
   {key:'md',       label:'M-D',         cond:function(r){ return !!r.hasMD; }},
-  {key:'shikyu',   label:'婦人科',      cond:function(r){ return !!r.hasShikyu; }},
-  {key:'massage',  label:'マッサージ',  cond:function(r){ return !!r.hasMassage; }},
-  {key:'sonota',   label:'その他',      cond:function(r){ return true; }},
-  // ── 後半（2026/10 改善依頼）：誠寿司・CS・保健指導・結果・MRI結果。視野は通過管理から削除 ──
   {key:'seisushi', label:'誠寿司',      cond:function(r){ return r.seisushi==='yes'; }},
   {key:'cs',       label:'CS',          cond:function(r){ return !!r.hasDaicho; }},
   {key:'hoken',    label:'保健指導',    cond:function(r){ return true; }},
+  {key:'sonota',   label:'その他',      cond:function(r){ return true; }},
   {key:'kekka',    label:'結果',        cond:function(r){ return !!r.hasKekka; }},
-  {key:'mrikekka', label:'MRI結果',     cond:function(r){ return !!r.hasMRIKekka; }}
+  {key:'mrikekka', label:'MRI結果',     cond:function(r){ return !!r.hasMRIKekka; }},
+  {key:'massage',  label:'マッサージ',  cond:function(r){ return !!r.hasMassage; }},
+  {key:'shikyu',   label:'婦人科',      cond:function(r){ return !!r.hasShikyu; }}
 ];
 
 // ── 「次の案内」注意喚起：該当検査の前に終了しておくべき検査（キーで指定・編集可）──
 // key（該当検査）: [その前に終了しておく検査key...]
 var PASS_PREREQ = {
   'ixp':       ['monshin','shindenz','shinsatsu','kyoubu','ct','fukuecho','kotsu'], // 胃バリウム(胃XP)：問診・心電図・診察・胸XP・胸CT・腹部エコー・骨密度
-  'igf':       ['monshin','shindenz'],    // 胃カメラ(胃GF)：問診・心電図
+  'igf':       ['monshin','shindenz'],    // 胃カメラ(胃GS)：問診・心電図
   'mammo':     ['monshin'],               // マンモ：問診
   'mri':       ['igf'],                    // MRCP：胃カメラ
   'shinsatsu': ['monshin'],               // 診察：問診
