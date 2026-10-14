@@ -1,0 +1,533 @@
+<title>個別看護計画AI 試作版</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=BIZ+UDGothic:wght@400;700&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap">
+<style>
+/* Layout: 患者タブ → 左にカルテ(根拠の出どころ)、右にAI計画案。カルテと計画を並べて照合する二面構成 */
+:root {
+  --bg: #f3f5f7;
+  --panel: #ffffff;
+  --ink: #17324d;          /* 月報と同じ紺 */
+  --fg: #1d2833;
+  --muted: #5b6a78;
+  --line: #d7dee5;
+  --tint: #e7eef5;
+  --accent: #1f5f8b;
+  --accent-soft: #e2edf6;
+  --flash: #fff1c2;
+  --good: #2e7d4f;  --good-soft: #e3f2e8;
+  --warn: #9a6400;  --warn-soft: #fbf0d9;
+  --bad:  #a33a3a;  --bad-soft:  #f7e4e4;
+  --f-display: "Zen Kaku Gothic New", "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic", sans-serif;
+  --f-body: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+  --f-data: "BIZ UDGothic", "Hiragino Sans", "Yu Gothic", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11171d; --panel: #18212a; --ink: #cfe0f0; --fg: #e3e9ef; --muted: #9aa9b7;
+    --line: #2b3844; --tint: #1f2b36; --accent: #7fb6de; --accent-soft: #1d3446; --flash: #4a3d12;
+    --good: #7fd3a0; --good-soft: #193526; --warn: #e8c071; --warn-soft: #3a2e14; --bad: #ef9a9a; --bad-soft: #3d1f1f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11171d; --panel: #18212a; --ink: #cfe0f0; --fg: #e3e9ef; --muted: #9aa9b7;
+  --line: #2b3844; --tint: #1f2b36; --accent: #7fb6de; --accent-soft: #1d3446; --flash: #4a3d12;
+  --good: #7fd3a0; --good-soft: #193526; --warn: #e8c071; --warn-soft: #3a2e14; --bad: #ef9a9a; --bad-soft: #3d1f1f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.7;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 18px; }
+h1, h2, h3 { font-family: var(--f-display); color: var(--ink); text-wrap: balance; margin: 0; line-height: 1.35; }
+h1 { font-size: 1.5rem; }
+h2 { font-size: 1.1rem; }
+h3 { font-size: 1rem; }
+button { font: inherit; cursor: pointer; }
+button:focus-visible, [contenteditable]:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header.top { display: grid; gap: 6px; }
+.eyebrow { font-size: .78rem; letter-spacing: .08em; color: var(--muted); }
+.notice {
+  display: flex; gap: 10px; align-items: flex-start; background: var(--warn-soft); color: var(--fg);
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); border-radius: 8px; padding: 10px 14px; font-size: .88rem;
+}
+.notice b { color: var(--warn); white-space: nowrap; }
+
+.patients { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.pt {
+  text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+  color: var(--fg); display: grid; gap: 2px;
+}
+.pt .nm { font-family: var(--f-display); font-weight: 700; color: var(--ink); }
+.pt .sub { font-size: .85rem; color: var(--muted); }
+.pt[aria-selected="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+
+.main { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 18px; align-items: start; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.panel > .hd { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); display: grid; gap: 4px; }
+.panel > .hd p { margin: 0; font-size: .85rem; color: var(--muted); }
+
+/* カルテ */
+.chart { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); max-height: calc(100vh - 40px); display: flex; flex-direction: column; }
+.chart .body { overflow: auto; padding: 4px 16px 16px; }
+.cat { margin-top: 12px; }
+.cat h3 { font-size: .8rem; letter-spacing: .06em; color: var(--muted); font-family: var(--f-body); font-weight: 700; padding-bottom: 4px; border-bottom: 1px dashed var(--line); }
+.item { display: grid; grid-template-columns: 3.2em minmax(0, 1fr); gap: 8px; padding: 6px 4px; border-radius: 6px; transition: background .4s; }
+.item .id { font-family: var(--f-data); font-size: .78rem; color: var(--accent); padding-top: 2px; }
+.item .lb { font-size: .82rem; color: var(--muted); }
+.item .vl { font-size: .92rem; }
+.item.cited .id { font-weight: 700; }
+.item.flash { background: var(--flash); }
+
+/* 計画 */
+.plan .hd { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.plan .hd .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: .85rem; color: var(--muted); }
+.src { font-size: .78rem; padding: 2px 8px; border-radius: 999px; background: var(--tint); color: var(--ink); }
+.src.ai { background: var(--accent-soft); color: var(--accent); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.btn { border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 8px; padding: 7px 14px; font-size: .9rem; }
+.btn.primary { background: var(--ink); color: var(--panel); border-color: var(--ink); font-weight: 700; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.status { padding: 10px 16px; font-size: .88rem; border-bottom: 1px solid var(--line); background: var(--tint); }
+.status.err { background: var(--bad-soft); color: var(--bad); }
+
+.problems { display: grid; gap: 14px; padding: 16px; }
+.prob { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.prob[data-st="採用"] { border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
+.prob[data-st="修正"] { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.prob[data-st="不採用"] { opacity: .6; }
+.prob .ph { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: baseline; justify-content: space-between; padding: 12px 14px; background: var(--tint); }
+.prob .ph h3 { font-size: 1.05rem; }
+.prob .ph .no { font-family: var(--f-data); color: var(--accent); margin-right: 6px; }
+.decide { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.decide button { border: 0; background: transparent; padding: 4px 12px; font-size: .85rem; color: var(--muted); }
+.decide button + button { border-left: 1px solid var(--line); }
+.decide button[aria-pressed="true"][data-v="採用"] { background: var(--good-soft); color: var(--good); font-weight: 700; }
+.decide button[aria-pressed="true"][data-v="修正"] { background: var(--warn-soft); color: var(--warn); font-weight: 700; }
+.decide button[aria-pressed="true"][data-v="不採用"] { background: var(--bad-soft); color: var(--bad); font-weight: 700; }
+.pb { padding: 12px 14px 14px; display: grid; gap: 10px; }
+.ev { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ev .lbl, .row .lbl { font-size: .78rem; color: var(--muted); letter-spacing: .04em; }
+.chip { border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); background: var(--accent-soft); color: var(--accent); border-radius: 6px; padding: 1px 8px; font-size: .8rem; }
+.chip b { font-family: var(--f-data); margin-right: 4px; }
+.row { display: grid; grid-template-columns: 5.5em minmax(0, 1fr); gap: 8px; align-items: start; }
+.row .lbl { padding-top: 3px; font-weight: 700; }
+.ed { border-radius: 4px; padding: 0 3px; margin: 0 -3px; }
+.ed:hover { background: var(--tint); }
+ul.lst { margin: 0; padding-left: 1.1em; display: grid; gap: 2px; }
+.indiv { background: var(--good-soft); border-radius: 8px; padding: 8px 12px; font-size: .9rem; }
+.indiv .lbl { color: var(--good); font-weight: 700; margin-right: 6px; }
+.missing { margin: 0 16px 16px; border: 1px dashed color-mix(in srgb, var(--warn) 55%, var(--line)); border-radius: 10px; padding: 12px 14px; }
+.missing h3 { color: var(--warn); font-size: .95rem; margin-bottom: 4px; }
+.missing ul { margin: 0; padding-left: 1.1em; }
+
+.final { margin: 0 16px 16px; border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 10px; }
+.counts { display: flex; gap: 14px; flex-wrap: wrap; font-size: .9rem; font-variant-numeric: tabular-nums; }
+.counts span b { font-family: var(--f-data); }
+pre.out { margin: 0; white-space: pre-wrap; background: var(--tint); border-radius: 8px; padding: 12px 14px; font-family: var(--f-data); font-size: .82rem; line-height: 1.65; max-height: 420px; overflow: auto; }
+.foot { font-size: .8rem; color: var(--muted); }
+
+@media (max-width: 860px) {
+  .main { grid-template-columns: minmax(0, 1fr); }
+  .chart { position: static; max-height: 420px; }
+  .patients { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { .item { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">浅井病院 DX推進 ・ 試作版(デモ)</div>
+    <h1>個別看護計画AI 試作版</h1>
+    <div class="notice"><b>架空データ</b><span>表示している患者・カルテ情報はすべて架空です。この試作版はカルテと連携しておらず、確定してもカルテには登録されません。実在の患者情報は入力しないでください。</span></div>
+  </header>
+
+  <nav class="patients" id="patients" role="tablist" aria-label="架空の患者"></nav>
+
+  <div class="main">
+    <section class="panel chart" aria-labelledby="chartTitle">
+      <div class="hd">
+        <h2 id="chartTitle">カルテ情報</h2>
+        <p>ベンダー連携で取得する想定の項目です。計画案の根拠タグを押すと該当箇所が光ります。</p>
+      </div>
+      <div class="body" id="chart"></div>
+    </section>
+
+    <section class="panel plan" aria-labelledby="planTitle">
+      <div class="hd">
+        <h2 id="planTitle">看護計画案</h2>
+        <div class="actions">
+          <button class="btn" id="stopBtn" hidden>中止</button>
+          <button class="btn primary" id="genBtn">AIで計画案を作成</button>
+        </div>
+        <div class="meta"><span class="src" id="srcTag">事前作成の例</span><span id="srcNote">各問題を「採用・修正・不採用」で判断してください。文章は直接クリックして修正できます。</span></div>
+      </div>
+      <div class="status" id="status" hidden></div>
+      <div class="problems" id="problems"></div>
+      <div class="missing" id="missing"></div>
+      <div class="final">
+        <div class="counts" id="counts"></div>
+        <div class="actions" style="justify-content:flex-start">
+          <button class="btn primary" id="finBtn">確定(試作)</button>
+          <button class="btn" id="copyBtn" hidden>テキストをコピー</button>
+          <button class="btn" id="resetBtn">事前作成の例に戻す</button>
+        </div>
+        <pre class="out" id="out" hidden></pre>
+        <div class="foot">AIの出力は下書きです。最終判断と確定は看護師が行います(要件定義書 第2章・第7章)。</div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+const PATIENTS = [
+  {
+    key: "p1", name: "Aさん(架空)", sub: "82歳 女性・整形外科病棟・入院4日目",
+    chart: [
+      ["基本情報","B1","年齢・性別","82歳 女性"],
+      ["基本情報","B2","入院","10/10 自宅で転倒し救急搬送"],
+      ["基本情報","B3","入院目的・予定","右大腿骨頸部骨折の手術とリハビリ。在院 約3週間の予定"],
+      ["病名・既往","D1","主病名","右大腿骨頸部骨折(10/11 人工骨頭置換術)"],
+      ["病名・既往","D2","既往歴","高血圧、骨粗鬆症、白内障術後"],
+      ["医師指示","O1","安静度","術後2日目より車椅子可。PT介入で全荷重開始"],
+      ["医師指示","O2","内服","アムロジピン、ゾルピデム(眠前・自宅から継続)、鎮痛薬 頓用"],
+      ["バイタル","V1","10/13","BT 37.4℃ / P 88 / BP 142/78 / SpO2 96%"],
+      ["バイタル","V2","疼痛","NRS 動作時6・安静時2"],
+      ["検査値","L1","10/12 血液","Hb 9.8 g/dL、Alb 3.0 g/dL"],
+      ["リスク評価","R1","転倒転落","危険度III(10/12)"],
+      ["リスク評価","R2","ブレーデンスケール","13点"],
+      ["リスク評価","R3","せん妄","10/12夜「ここはどこ?家に帰る」と発言。点滴を自己抜去しかけた"],
+      ["ADL","A1","入院前","屋内つたい歩き自立、屋外はシルバーカー"],
+      ["ADL","A2","現在","移乗一部介助、排泄はポータブルトイレ"],
+      ["生活背景・意向","S1","家族","夫(85歳)と二人暮らし。キーパーソンは長女(市内、週2回訪問)"],
+      ["生活背景・意向","S2","住環境","戸建て。寝室は1階、ベッドは右側から降りる"],
+      ["生活背景・意向","S3","本人の希望","「家に帰って夫の世話をしたい」"],
+      ["生活背景・意向","S4","生活習慣","夜間トイレ2回(0時ごろ・3時ごろ)。朝5時起床"],
+      ["看護記録","N1","10/13 日勤","リハビリに意欲的だが、疼痛で中断あり"]
+    ],
+    sample: {
+      problems: [
+        { title: "転倒・転落のリスク", evidence: ["R1","O2","S4","A2","S2"],
+          longGoal: "入院中に転倒せず、シルバーカー歩行で自宅へ退院できる",
+          shortGoal: "1週間以内に、夜間トイレの際はナースコールで看護師を呼べる",
+          op: ["眠前薬内服後のふらつき・覚醒状態","夜間排泄の時間帯と回数","患肢の荷重状況とPTの指示内容"],
+          tp: ["0時・3時ごろに排泄誘導を行う(自宅での夜間トイレの習慣に合わせる)","ベッドは右側から降りる配置にし、ポータブルトイレも右側に置く","離床センサーの要否を毎日のカンファレンスで評価する"],
+          ep: ["本人にナースコールの使い方を繰り返し説明し、大きな文字で床頭台に掲示する","長女へ自宅の転倒予防(段差・照明)について説明する"],
+          evalDate: "10/20", individuality: "自宅での夜間トイレの時間とベッドの降り方に合わせて、誘導時間と配置を決めた" },
+        { title: "術後せん妄のリスク", evidence: ["R3","B1","V2","S3"],
+          longGoal: "退院まで見当識が保たれ、治療とリハビリに協力できる",
+          shortGoal: "3日以内に、夜間の不穏行動がなくなる",
+          op: ["見当識・睡眠状況・夜間の言動","疼痛(NRS)と鎮痛薬使用後の変化","点滴ルート類への接触の有無"],
+          tp: ["日中はリハビリと車椅子での離床で覚醒を促し、昼夜のリズムをつける","カレンダー・時計・家族写真を床頭台に置く","疼痛時は指示の鎮痛薬を早めに使用する"],
+          ep: ["長女の面会時に、日付や家の話題での声かけを依頼する"],
+          evalDate: "10/17", individuality: "「夫の世話をしたい」という本人の思いを会話に取り入れ、目標と見当識づけに活用した" },
+        { title: "褥瘡発生のリスク", evidence: ["R2","L1","A2"],
+          longGoal: "入院中に褥瘡を発生させない",
+          shortGoal: "1週間、仙骨部・右踵部に発赤がない",
+          op: ["仙骨部・右踵部の皮膚状態","食事摂取量と体重"],
+          tp: ["2時間ごとに体位変換を行う(患肢は外転中間位を保持)","体圧分散マットレスを使用する","摂取量が少ない場合は栄養科へ補食を相談する"],
+          ep: ["本人へ、ベッド上でできる除圧動作を指導する"],
+          evalDate: "10/20", individuality: "低アルブミンと活動低下が重なるため、栄養面の対応を計画に含めた" }
+      ],
+      missing: ["介護保険の認定状況と利用中のサービス","長女が退院後の介護にどこまで関われるか","夫(85歳)の健康状態と介護力"]
+    }
+  },
+  {
+    key: "p2", name: "Bさん(架空)", sub: "68歳 男性・循環器病棟・入院7日目",
+    chart: [
+      ["基本情報","B1","年齢・性別","68歳 男性"],
+      ["基本情報","B2","入院","10/8 外来受診時に息切れ・下肢浮腫で緊急入院"],
+      ["基本情報","B3","入院目的","心不全増悪の治療と再入院予防"],
+      ["病名・既往","D1","主病名","慢性心不全の急性増悪(拡張型心筋症)。今年2回目の入院"],
+      ["病名・既往","D2","既往歴","2型糖尿病、高血圧"],
+      ["医師指示","O1","安静度","病棟内歩行可"],
+      ["医師指示","O2","食事","減塩6g/日・1600kcal"],
+      ["医師指示","O3","飲水","1000mL/日まで"],
+      ["医師指示","O4","内服・測定","フロセミド、カルベジロール ほか。毎朝体重測定"],
+      ["バイタル","V1","10/13","BP 128/70 / P 76 / SpO2 97%"],
+      ["バイタル","V2","体重","入院時 68.4kg → 10/13 64.9kg。下肢浮腫 軽度残存"],
+      ["検査値","L1","血液","BNP 860 pg/mL(入院時)、HbA1c 7.8%"],
+      ["リスク評価","R1","心機能","NYHA III(入院時)→ II"],
+      ["リスク評価","R2","転倒転落","危険度I"],
+      ["ADL","A1","ADL","すべて自立"],
+      ["生活背景・意向","S1","家族","独居(妻とは死別)。長男は県外在住"],
+      ["生活背景・意向","S2","仕事・食生活","タクシー運転手(週4日)。昼食は外食(ラーメン・丼もの)が多い"],
+      ["生活背景・意向","S3","服薬状況","「調子がいいと飲み忘れる」。前回退院後に利尿薬を自己中断"],
+      ["生活背景・意向","S4","本人の希望","「早く仕事に戻りたい」"],
+      ["生活背景・意向","S5","その他","スマートフォンを日常的に使用"],
+      ["看護記録","N1","10/12","体重を自分でノートに記録し始めた"]
+    ],
+    sample: {
+      problems: [
+        { title: "非効果的健康管理(再入院のリスク)", evidence: ["D1","S3","S1","S2","S5","N1"],
+          longGoal: "退院後、服薬と体重測定を自分で続け、心不全で再入院しない",
+          shortGoal: "退院までに、毎朝の体重測定と服薬を自分で記録できる",
+          op: ["服薬の自己管理ができているか","体重記録の継続状況","心不全の悪化サインについての理解度"],
+          tp: ["入院中から服薬カレンダーで自己管理を練習する","服薬時間のアラームを本人のスマートフォンに一緒に設定する","N1の体重ノートを継続できるよう毎朝一緒に確認する"],
+          ep: ["「2〜3日で2kg以上増えたら受診」の目安を説明する","外食での減塩の工夫(ラーメンのスープを残す、丼は小盛り等)を具体的に説明する","退院後の心不全外来・訪問看護の利用についてMSWと連携して説明する"],
+          evalDate: "10/18", individuality: "独居・タクシー勤務・外食中心の生活に合わせ、スマートフォンのアラームと外食メニューで指導を具体化した" },
+        { title: "体液量過剰", evidence: ["V2","L1","R1","O2","O3"],
+          longGoal: "退院時に浮腫・息切れがなく、体重が安定している",
+          shortGoal: "3日以内に下肢浮腫が軽減する",
+          op: ["毎朝の体重","尿量・水分出納","呼吸状態・下肢浮腫の程度"],
+          tp: ["減塩食の摂取状況を確認する","指示の飲水量(1000mL/日)を本人と一緒に管理する"],
+          ep: ["飲水量の数え方(コップ1杯=200mL)を説明する"],
+          evalDate: "10/16", individuality: "退院後も自分で管理できるよう、入院中から飲水量の記録を本人に任せる" }
+      ],
+      missing: ["退院後の飲水制限の指示量(医師に確認)","職場で勤務日数を調整できるか","長男の支援の可否と連絡先"]
+    }
+  },
+  {
+    key: "p3", name: "Cさん(架空)", sub: "86歳 女性・内科病棟・入院6日目",
+    chart: [
+      ["基本情報","B1","年齢・性別","86歳 女性"],
+      ["基本情報","B2","入院","10/9 入所中の施設から発熱・SpO2低下で入院"],
+      ["基本情報","B3","入院目的","誤嚥性肺炎の治療"],
+      ["病名・既往","D1","主病名","誤嚥性肺炎"],
+      ["病名・既往","D2","既往歴","アルツハイマー型認知症、脳梗塞後遺症(左片麻痺 軽度)"],
+      ["医師指示","O1","安静度","ベッド上〜車椅子可"],
+      ["医師指示","O2","食事","10/12よりゼリー食開始(言語聴覚士の評価後)。とろみは中間"],
+      ["医師指示","O3","点滴","抗菌薬 1日2回"],
+      ["バイタル","V1","10/13","BT 37.0℃ / SpO2 95% / 痰 少量"],
+      ["検査値","L1","血液","CRP 8.2 → 3.1 mg/dL、Alb 2.8 g/dL"],
+      ["リスク評価","R1","転倒転落","危険度II"],
+      ["リスク評価","R2","ブレーデンスケール","12点"],
+      ["リスク評価","R3","嚥下","改訂水飲みテスト 3点"],
+      ["ADL","A1","認知機能","認知症高齢者の日常生活自立度 IIIa"],
+      ["ADL","A2","食事","一部介助。右手でスプーンを使える"],
+      ["行動制限","K1","身体拘束","10/10よりミトン型手袋を使用。理由:点滴を触る動作あり"],
+      ["生活背景・意向","S1","施設情報","特別養護老人ホームに3年入所。歌が好きで童謡をよく口ずさむ(施設職員より)"],
+      ["生活背景・意向","S2","家族","次女がキーパーソン(遠方、電話連絡)"],
+      ["生活背景・意向","S3","家族の希望","次女「できれば口から食べさせてあげたい」"],
+      ["生活背景・意向","S4","施設での食事","全粥・刻み食。昼食時は覚醒が良い"],
+      ["看護記録","N1","10/13 夜勤","ミトンを外そうとする動作あり。表情が険しい"]
+    ],
+    sample: {
+      problems: [
+        { title: "誤嚥のリスク", evidence: ["R3","O2","A2","S4","S3","D1"],
+          longGoal: "安全に口から食べることを続け、施設へ戻れる",
+          shortGoal: "1週間、むせや発熱がなくゼリー食を食べられる",
+          op: ["食事中のむせ・湿性嗄声","体温・痰の量と性状","食事摂取量"],
+          tp: ["覚醒の良い昼食時から食形態を上げられるか、言語聴覚士・医師と相談する","リクライニング30度以上・頸部前屈の姿勢で、右手でのスプーン摂取を見守る","食後30分は座位を保ち、口腔ケアを行う"],
+          ep: ["次女へ電話で食事の経過を伝える","施設職員と食形態・食事介助の方法を共有する"],
+          evalDate: "10/17", individuality: "施設での覚醒の良い時間帯と、右手で食べられる力を活かした" },
+        { title: "身体拘束による弊害のリスク(行動制限の早期解除)", evidence: ["K1","N1","A1","S1","O3"],
+          longGoal: "退院までにミトンを外して過ごせる",
+          shortGoal: "3日以内に、日中はミトンを外して過ごす時間をつくる",
+          op: ["点滴を触る動作の頻度と時間帯","ミトン使用中の皮膚・表情・苦痛の有無","解除の可否を毎日カンファレンスで評価する(切迫性・非代替性・一時性)"],
+          tp: ["日中は見守りのもとでミトンを外す","点滴ルートは袖の中を通し、視界に入らないよう工夫する","好きな童謡を流す・一緒に歌うなどで不安を和らげる"],
+          ep: ["次女へミトン使用の理由と解除に向けた方針を説明する"],
+          evalDate: "10/16", individuality: "施設職員からの情報(歌が好き)を不安の軽減に活用した" }
+      ],
+      missing: ["施設での最新の食事形態と介助方法","次女と連絡が取りやすい時間帯","ミトン使用の同意の記録"]
+    }
+  }
+];
+
+const $ = (id) => document.getElementById(id);
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const state = { idx: 0, plans: {} };
+PATIENTS.forEach(p => { state.plans[p.key] = freshPlan(clone(p.sample), "sample"); });
+
+function freshPlan(data, source) {
+  data.problems.forEach(pr => { pr.status = "未判断"; });
+  return { ...data, source, finalized: false };
+}
+function cur() { return PATIENTS[state.idx]; }
+function plan() { return state.plans[cur().key]; }
+
+function el(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v);
+  }
+  for (const k of kids) if (k != null) n.append(k);
+  return n;
+}
+
+function renderPatients() {
+  const nav = $("patients"); nav.textContent = "";
+  PATIENTS.forEach((p, i) => {
+    nav.append(el("button", { class: "pt", role: "tab", "aria-selected": String(i === state.idx), onclick: () => { state.idx = i; renderAll(); } },
+      el("span", { class: "nm" }, p.name), el("span", { class: "sub" }, p.sub)));
+  });
+}
+
+function renderChart() {
+  const box = $("chart"); box.textContent = "";
+  const cited = new Set(plan().problems.flatMap(pr => pr.evidence));
+  let lastCat = null, group;
+  for (const [cat, id, label, value] of cur().chart) {
+    if (cat !== lastCat) { group = el("div", { class: "cat" }, el("h3", {}, cat)); box.append(group); lastCat = cat; }
+    group.append(el("div", { class: "item" + (cited.has(id) ? " cited" : ""), id: "c-" + id },
+      el("span", { class: "id" }, id),
+      el("div", {}, el("div", { class: "lb" }, label), el("div", { class: "vl" }, value))));
+  }
+}
+
+function flash(id) {
+  const n = document.getElementById("c-" + id); if (!n) return;
+  n.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  n.classList.add("flash"); setTimeout(() => n.classList.remove("flash"), 1600);
+}
+
+function editable(text, onEdit) {
+  const s = el("span", { class: "ed", contenteditable: "true", spellcheck: "false" }, text);
+  s.addEventListener("input", () => onEdit(s.textContent));
+  return s;
+}
+
+function renderPlan() {
+  const p = plan(), patient = cur();
+  const labelOf = Object.fromEntries(patient.chart.map(c => [c[1], c[2]]));
+  $("srcTag").textContent = p.source === "ai" ? "AIが作成した案" : "事前作成の例";
+  $("srcTag").className = "src" + (p.source === "ai" ? " ai" : "");
+  const box = $("problems"); box.textContent = "";
+  p.problems.forEach((pr, i) => {
+    const markEdit = () => { if (pr.status !== "不採用") { pr.status = "修正"; updateCard(card, pr); renderCounts(); } };
+    const listRow = (lbl, key) => el("div", { class: "row" }, el("span", { class: "lbl" }, lbl),
+      el("ul", { class: "lst" }, ...pr[key].map((t, j) => el("li", {}, editable(t, v => { pr[key][j] = v; markEdit(); })))));
+    const decide = el("div", { class: "decide", role: "group", "aria-label": "判断" },
+      ...["採用", "修正", "不採用"].map(v => el("button", { "data-v": v, "aria-pressed": "false", onclick: () => { pr.status = v; updateCard(card, pr); renderCounts(); } }, v)));
+    const card = el("article", { class: "prob" },
+      el("div", { class: "ph" }, el("h3", {}, el("span", { class: "no" }, "#" + (i + 1)), pr.title), decide),
+      el("div", { class: "pb" },
+        el("div", { class: "ev" }, el("span", { class: "lbl" }, "根拠"),
+          ...pr.evidence.map(id => el("button", { class: "chip", onclick: () => flash(id), title: "カルテの該当箇所を表示" }, el("b", {}, id), labelOf[id] || ""))),
+        el("div", { class: "row" }, el("span", { class: "lbl" }, "長期目標"), editable(pr.longGoal, v => { pr.longGoal = v; markEdit(); })),
+        el("div", { class: "row" }, el("span", { class: "lbl" }, "短期目標"), editable(pr.shortGoal, v => { pr.shortGoal = v; markEdit(); })),
+        listRow("OP 観察", "op"), listRow("TP 援助", "tp"), listRow("EP 指導", "ep"),
+        el("div", { class: "row" }, el("span", { class: "lbl" }, "評価日"), editable(pr.evalDate, v => { pr.evalDate = v; markEdit(); })),
+        el("div", { class: "indiv" }, el("span", { class: "lbl" }, "個別性"), pr.individuality)));
+    updateCard(card, pr);
+    box.append(card);
+  });
+  const m = $("missing"); m.textContent = "";
+  m.append(el("h3", {}, "カルテに記録がなく、確認が必要な情報"),
+    p.missing.length ? el("ul", {}, ...p.missing.map(t => el("li", {}, t))) : el("p", {}, "なし"));
+  $("out").hidden = !p.finalized; $("copyBtn").hidden = !p.finalized;
+  if (p.finalized) $("out").textContent = planText();
+  renderCounts();
+}
+
+function updateCard(card, pr) {
+  card.dataset.st = pr.status;
+  card.querySelectorAll(".decide button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === pr.status)));
+}
+
+function renderCounts() {
+  const c = { 採用: 0, 修正: 0, 不採用: 0, 未判断: 0 };
+  plan().problems.forEach(pr => c[pr.status]++);
+  const box = $("counts"); box.textContent = "";
+  for (const k of ["採用", "修正", "不採用", "未判断"]) box.append(el("span", {}, k + " ", el("b", {}, String(c[k]))));
+  $("finBtn").disabled = c.未判断 > 0;
+  $("finBtn").title = c.未判断 > 0 ? "すべての問題を判断すると確定できます" : "";
+}
+
+function planText() {
+  const p = plan(), lines = [`看護計画(${cur().name})  ※試作版・架空データ`, ""];
+  p.problems.filter(pr => pr.status !== "不採用").forEach((pr, i) => {
+    lines.push(`#${i + 1} ${pr.title}`, `長期目標:${pr.longGoal}`, `短期目標:${pr.shortGoal}`,
+      "OP:", ...pr.op.map(t => "・" + t), "TP:", ...pr.tp.map(t => "・" + t), "EP:", ...pr.ep.map(t => "・" + t),
+      `評価日:${pr.evalDate}`, "");
+  });
+  return lines.join("\n");
+}
+
+function setStatus(msg, err) { const s = $("status"); s.hidden = !msg; s.textContent = msg || ""; s.className = "status" + (err ? " err" : ""); }
+
+function renderAll() { renderPatients(); renderChart(); renderPlan(); setStatus(""); }
+
+$("finBtn").onclick = () => { plan().finalized = true; renderPlan(); setStatus("確定しました(試作版のため、カルテには登録されません)。"); };
+$("resetBtn").onclick = () => { state.plans[cur().key] = freshPlan(clone(cur().sample), "sample"); renderAll(); };
+$("copyBtn").onclick = async () => {
+  try { await navigator.clipboard.writeText($("out").textContent); setStatus("コピーしました。"); }
+  catch { const r = document.createRange(); r.selectNodeContents($("out")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); setStatus("テキストを選択しました。コピーしてください。"); }
+};
+
+// ---- AI作成(sample capability) ----
+function buildPrompt(p) {
+  const chartText = p.chart.map(([cat, id, label, value]) => `[${id}] ${cat}/${label}:${value}`).join("\n");
+  return `あなたは日本の急性期病院の経験豊富な看護師です。以下の電子カルテ情報だけを使い、この患者に合った個別性のある看護計画の下書きを作成してください。今日は2026年10月14日です。
+
+# ルール
+- 看護問題は優先順位の高い順に2〜4つ。
+- 各問題の evidence には、根拠にしたカルテ情報のID(例 "R1")を必ず入れる。カルテにない情報を根拠にしない。推測で事実を作らない。
+- 目標は患者を主語にし、期限と観察できる状態を入れる。
+- OP(観察)・TP(援助)・EP(指導)はこの患者の生活背景・意向・できるADLを反映した具体的な内容にする。標準的な一般論だけにしない。
+- 医師の指示を超える薬剤・治療を提案しない。必要なら「医師に相談」と書く。
+- individuality には標準看護計画から変えた点とその理由を1文で書く。
+- 計画に必要だがカルテに記録がない情報は missing に挙げる。
+- evalDate は "10/17" の形式。
+- 日本語で、看護記録として自然な表現にする。
+
+# カルテ情報
+${chartText}
+
+# 出力
+次の形のJSONだけを返してください。説明文やコードブロックは不要です。
+{"problems":[{"title":"","evidence":["ID"],"longGoal":"","shortGoal":"","op":[""],"tp":[""],"ep":[""],"evalDate":"","individuality":""}],"missing":[""]}`;
+}
+
+function validPlan(data, p) {
+  const ids = new Set(p.chart.map(c => c[1]));
+  const str = (v) => typeof v === "string" ? v : "";
+  const arr = (v) => Array.isArray(v) ? v.map(String).filter(Boolean) : [];
+  if (!data || !Array.isArray(data.problems) || !data.problems.length) return null;
+  return {
+    problems: data.problems.slice(0, 5).map(pr => ({
+      title: str(pr.title) || "(無題)", evidence: arr(pr.evidence).filter(id => ids.has(id)),
+      longGoal: str(pr.longGoal), shortGoal: str(pr.shortGoal), op: arr(pr.op), tp: arr(pr.tp), ep: arr(pr.ep),
+      evalDate: str(pr.evalDate), individuality: str(pr.individuality)
+    })),
+    missing: arr(data.missing)
+  };
+}
+
+const ERR = {
+  not_granted: "AIの利用が許可されていません。事前作成の例でお試しください。",
+  rate_limited: "AIへの依頼が集中しています。少し時間をおいてからもう一度押してください。",
+  invalid_json: "AIの回答を読み取れませんでした。もう一度押してください。",
+  refused: "AIが作成できませんでした。事前作成の例でお試しください。",
+  prompt_too_large: "カルテ情報が多すぎて送れませんでした。"
+};
+
+let sample = null, ctl = null;
+$("genBtn").hidden = true;
+(async () => {
+  try { sample = window.claude ? await window.claude.use("sample") : null; } catch { sample = null; }
+  if (sample) $("genBtn").hidden = false;
+  else $("srcNote").textContent = "この画面ではAI作成を利用できないため、事前作成の例を表示しています。";
+})();
+
+$("stopBtn").onclick = () => ctl?.abort();
+$("genBtn").onclick = async () => {
+  if (!sample) return;
+  const p = cur(), key = p.key;
+  ctl = new AbortController();
+  $("genBtn").disabled = true; $("stopBtn").hidden = false;
+  setStatus("AIがカルテ情報を読んで計画案を作成しています(30秒〜1分ほどかかります)…");
+  try {
+    const data = await sample.json(buildPrompt(p), { signal: ctl.signal, modelTier: "default" });
+    const v = validPlan(data, p);
+    if (!v) throw { code: "invalid_json" };
+    state.plans[key] = freshPlan(v, "ai");
+    if (cur().key === key) { renderChart(); renderPlan(); setStatus("AIの計画案を表示しました。根拠を確かめてから判断してください。"); }
+  } catch (e) {
+    if (e?.code === "cancelled") setStatus("中止しました。");
+    else { setStatus(ERR[e?.code] || "AIの作成に失敗しました。もう一度押してください。", true); if (e?.code === "not_granted") $("genBtn").hidden = true; }
+  } finally {
+    $("genBtn").disabled = false; $("stopBtn").hidden = true;
+  }
+};
+
+renderAll();
+</script>
