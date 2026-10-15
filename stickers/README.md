@@ -201,6 +201,14 @@ python stickers/animate.py shiba_moetsuki 1:squash 2:tremble 4:tremble 5:wiggle 
   - 動く燃え尽き柴犬。ぐったり・ぷるぷる・ゆらゆら…がんばりすぎた気持ちを動きで代弁する24種類。
   - A burnt-out Shiba that moves! Flopping, trembling and swaying to show how tired you are. 24 animated stickers.
 
+## フチなし版（`--border 0`）
+白フチを付けない版。持ち込み画像から作ったセットは `_nofuchi` を付けた名前で作っている（フチあり版はそのまま残している）。
+```bash
+python stickers/from_sheet.py stickers/source/mofuneko_sheet_fixed.png mofuneko_nofuchi --drop 29,40 --main 2 --border 0
+# 他のセットも同じく、元のコマンドの最後に --border 0 を付けて名前に _nofuchi を付ける
+python stickers/animate.py shiba_moeru_nofuchi 1:bounce ...   # 動く版はフチなしの静止画から作る
+```
+
 ## 次の展開案（シリーズ化すると売上が伸びる）
 - 動くスタンプ版（単価が上がる）
 - ナース・医療職版（職場ネタ、競合が少ない）

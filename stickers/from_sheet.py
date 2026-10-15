@@ -165,6 +165,8 @@ def remove_background(cell, white_min=245, neutral=14, seal=4):
 
 
 def add_white_border(im, px):
+    if px <= 0:  # --border 0: フチなし
+        return im
     im = ImageOps.expand(im, border=px * 2, fill=(0, 0, 0, 0))
     grown = im.getchannel("A").point(lambda v: 255 if v > 40 else 0).filter(ImageFilter.MaxFilter(px * 2 + 1))
     grown = grown.filter(ImageFilter.GaussianBlur(0.8))
@@ -193,6 +195,7 @@ def main():
     ap.add_argument("--main", type=int, default=1, help="メイン画像にするセル番号")
     ap.add_argument("--tab", type=int, default=None, help="タブ画像にするセル番号（省略時はメインと同じ）")
     ap.add_argument("--cols", type=int, default=None, help="列の数（白い隙間で切れない画像のときに指定）")
+    ap.add_argument("--border", type=int, default=5, help="白フチの太さ（0でフチなし）")
     ap.add_argument("--tab-cut", type=float, default=0.27, help="タブ画像で上から切り落とす割合（文字の部分）")
     args = ap.parse_args()
 
@@ -211,18 +214,18 @@ def main():
     for n, i in enumerate(keep, 1):
         # 先に拡大してからフチを付けると、フチの太さがどのスタンプでも同じになる
         big = fit(cut[i], W - 24, H - 24, margin=0)
-        tile = fit(add_white_border(big.crop(big.getbbox()), 5), W, H)
+        tile = fit(add_white_border(big.crop(big.getbbox()), args.border), W, H)
         tile.save(out / f"{n:02d}.png", optimize=True)
         tiles.append(tile)
 
     for idx, (fname, size, margin) in {args.main: ("main.png", (240, 240), 6)}.items():
         src = fit(cut[idx], size[0] - 16, size[1] - 16, margin=0)
-        fit(add_white_border(src.crop(src.getbbox()), 4), *size, margin=margin).save(out / fname, optimize=True)
+        fit(add_white_border(src.crop(src.getbbox()), args.border * 4 // 5), *size, margin=margin).save(out / fname, optimize=True)
     # タブ画像は小さいので、上の文字を除いて猫だけにする
     t = cut[args.tab or args.main]
     t = t.crop((0, int(t.height * args.tab_cut), t.width, t.height))
     tab_src = fit(t.crop(t.getbbox()), 92, 70, margin=0)
-    fit(add_white_border(tab_src.crop(tab_src.getbbox()), 2), 96, 74, margin=2).save(out / "tab.png", optimize=True)
+    fit(add_white_border(tab_src.crop(tab_src.getbbox()), min(args.border, 2)), 96, 74, margin=2).save(out / "tab.png", optimize=True)
 
     cols = 5
     pv = Image.new("RGBA", (cols * W, -(-len(tiles) // cols) * H), (140, 171, 216, 255))
