@@ -31,7 +31,7 @@ Instagram：Meta Business Suiteの予約投稿（リール）
 | X | @ta_sancute（たーぼぅ@AI副…） | メインアカウントで投稿 |
 | TikTok | @eilua3（表示名：ティーカップの小さな世界） | 元「えるる」。ニックネームは7日に1回しか変更できない |
 | Instagram | @nyaunyau55（名前：ティーカップの小さな世界） | Facebook未連携。Meta Business Suiteには「Instagramでログイン」で入る |
-| YouTube | @yossi5941 → 本シリーズ用に変更予定（2026/10/15〜） | 名前・ハンドルの変更は14日間に回数制限あり。予約はYouTube Studioの「スケジュールを設定」 |
+| YouTube | インスタのプロフィールにリンクしているチャンネル（アドレス未記録） | 本人が設定済み・予約投稿も登録済み（10/16確認）。予約はYouTube Studioの「スケジュールを設定」 |
 
 プロフィール（TikTok・インスタ共通）：
 
