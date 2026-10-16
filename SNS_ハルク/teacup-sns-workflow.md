@@ -31,6 +31,7 @@ Instagram：Meta Business Suiteの予約投稿（リール）
 | X | @ta_sancute（たーぼぅ@AI副…） | メインアカウントで投稿 |
 | TikTok | @eilua3（表示名：ティーカップの小さな世界） | 元「えるる」。ニックネームは7日に1回しか変更できない |
 | Instagram | @nyaunyau55（名前：ティーカップの小さな世界） | Facebook未連携。Meta Business Suiteには「Instagramでログイン」で入る |
+| Substack | @taabou（https://substack.com/@taabou） | 週1の記事（日曜21:00）＋ノート。記事はエディタの「スケジュール」、ノートは入力欄の📅で1件ずつ予約。予約ノートへの動画添付は未確認のため画像で出す |
 | YouTube | インスタのプロフィールにリンクしているチャンネル（アドレス未記録） | 本人が設定済み・予約投稿も登録済み（10/16確認）。予約はYouTube Studioの「スケジュールを設定」 |
 
 プロフィール（TikTok・インスタ共通）：
