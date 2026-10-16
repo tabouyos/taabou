@@ -131,6 +131,12 @@ window.__makeMusic = async (theme, dur, sr) => {
       seq([77, null, 80, 79, 77, null, 72, null, 73, null, 77, 76, 73, null, 68, null], (t, m) => box(t, m, 0.15));
       flute(S * 8, 84, S * 3, 0.04); flute(S * 12, 83, S * 3, 0.04);
       break;
+    case 'lullaby': // sleeping kitten / cozy village
+      pad(0, [53, 60, 65, 69], dur / 2 + 0.3, 0.04); pad(dur / 2, [50, 57, 62, 65], dur / 2, 0.04);
+      seq([77, 76, 74, 72, 74, 72, 69, null], (t, m) => box(t, m, 0.13), S * 2);
+      seq([53, null, null, null, 50, null, null, null], (t, m) => box(t, m, 0.06), S * 2);
+      bell(dur - 1.2, 84, 0.035);
+      break;
     case 'parade':
       [0, 4, 8, 12].forEach(i => taiko(i * S, 0.35)); [2, 6, 10, 14].forEach(i => block(i * S, 0.1));
       seq([38, 45, 41, 45, 38, 45, 43, 45], (t, m) => pizz(t, m, 0.2), S * 2);

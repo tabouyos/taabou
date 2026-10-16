@@ -34,6 +34,17 @@ Substack(https://substack.com/@taabou)は、**毎週日曜21:00に記事「テ�
 - **Midjourneyの生成とSNSへの予約は、ログイン済みのChromeが必要**(Claude in Chrome / Cowork)。クラウド環境からは cdn.midjourney.com も各SNSも操作できない
 - 外部の自動投稿サービス(Ootto等)は使わない。各SNSの公式予約機能を使う
 
+## 動画づくりの分担(10/16決定)
+
+- 画像:Midjourney(Basic)。動画:**Kling(fal.ai経由)**。**縦長9:16を1日1本だけ作り、全SNS共通で使う**(Xも縦動画を表示できる。横長版は作らない)
+- BGM:**クラウドのハルクが付けられる**。動画(音なし)をこのチャットにアップロード → `render_bgm.js` で `bgm_engine.js` の曲を書き出し → ffmpegで合成・音量をSNS向け(-16 LUFS)にそろえる
+  ```
+  node SNS_ハルク/render_bgm.js SNS_ハルク/bgm_engine.js <テーマ> <秒数> out.wav
+  ffmpeg -i 動画.mp4 -i out.wav -map 0:v -map 1:a -c:v copy -af "loudnorm=I=-16:TP=-1.5:LRA=11" -c:a aac -b:a 192k -shortest 出力.mp4
+  ```
+- できあがった動画は `output/` に置く(mp4はgitに入れない)
+- Substackの毎日ノートも同じテーマ・同じ動画(本人確認 10/16)
+
 ## BGMテーマの割り当て
 
 `bgm_engine.js` にある9種類から選ぶ。新しい曲調が必要になったら `__makeMusic` の switch に case を足す。
@@ -48,3 +59,4 @@ Substack(https://substack.com/@taabou)は、**毎週日曜21:00に記事「テ�
 | matsuri | 太鼓+笛 | 祭り・にぎやか |
 | halloween / candy | 短調・ちょっと不思議 | ハロウィン・夜のお菓子 |
 | parade | 太鼓+オルゴール | パレード・クリスマス・イベント |
+| lullaby | やさしいオルゴールの子守唄 | 眠る子猫が主役・家や村・夜(10/16追加) |
