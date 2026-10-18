@@ -84,6 +84,12 @@ header.top { display: grid; gap: 6px; }
 .item .vl { font-size: .92rem; }
 .item.cited .id { font-weight: 700; }
 .item.flash { background: var(--flash); }
+.item.scan { background: var(--accent-soft); }
+.chart .body { position: relative; }
+.btn.ai { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); color: var(--accent); }
+.steps { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .82rem; color: var(--muted); }
+.steps span[data-on="true"] { color: var(--ink); font-weight: 700; }
+.steps span[data-done="true"] { color: var(--good); }
 
 /* 計画 */
 .plan .hd { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
@@ -164,14 +170,16 @@ pre.out { margin: 0; white-space: pre-wrap; background: var(--tint); border-radi
         <h2 id="planTitle">看護計画案</h2>
         <div class="actions">
           <button class="btn" id="stopBtn" hidden>中止</button>
-          <button class="btn primary" id="genBtn">AIで計画案を作成</button>
+          <button class="btn primary" id="demoBtn">作成デモを再生</button>
+          <button class="btn ai" id="genBtn" hidden title="あなたのClaude利用枠を使います">AIで作成(本番)</button>
         </div>
         <div class="meta"><span class="src" id="srcTag">事前作成の例</span><span id="srcNote">各問題を「採用・修正・不採用」で判断してください。文章は直接クリックして修正できます。</span></div>
       </div>
+      <div class="status steps" id="steps" hidden><span id="st1">① カルテ情報を読み込む</span><span id="st2">② 看護問題を抽出</span><span id="st3">③ 計画を作成</span><span id="st4">④ 看護師が確認</span></div>
       <div class="status" id="status" hidden></div>
       <div class="problems" id="problems"></div>
       <div class="missing" id="missing"></div>
-      <div class="final">
+      <div class="final" id="final">
         <div class="counts" id="counts"></div>
         <div class="actions" style="justify-content:flex-start">
           <button class="btn primary" id="finBtn">確定(試作)</button>
@@ -218,21 +226,21 @@ const PATIENTS = [
         { title: "他者への暴力のリスク(隔離の早期解除に向けて)", evidence: ["R1","R2","K1","N1","S5"],
           longGoal: "退院まで暴力行為がなく、病棟のルールの中で落ち着いて過ごせる",
           shortGoal: "1週間以内に、日中の開放観察を4時間以上落ち着いて過ごせる",
-          op: ["幻聴・妄想の内容と言動、表情","開放観察中の過ごし方と他患者との関わり","隔離継続の要否(指定医の診察と毎日の看護評価)"],
+          op: ["幻聴・妄想の内容と頻度(「お前はだめだ」という声の聞こえ方、本人の受け止め方)","表情・口調・視線、声の大きさ、歩き回る・独語など不穏の前兆","開放観察中の過ごし方と、他患者・スタッフとの関わり方","頓用薬の使用時刻・理由と、使用30分後の反応","BPRS(週1回)による精神症状の推移","隔離中の定期観察(保護室内の様子・食事・水分・排泄・睡眠)","隔離継続の要否(指定医の診察と毎日の看護評価)"],
           tp: ["開放観察中は音楽を聴ける環境を用意し、落ち着ける過ごし方を一緒に探す","不穏の兆し(声が大きくなる、歩き回る)が見えたら早めに声をかけ、医師指示の頓用で対応する","保護室では定期的に訪室し、本人が話したいときに話を聴く時間をとる"],
           ep: ["「声」がつらいときは看護師に伝えてよいことを繰り返し伝える"],
           evalDate: "10/17", individuality: "開放観察で落ち着けた「音楽を聴く」方法を、隔離解除に向けた対処法として計画に入れた" },
         { title: "睡眠パターン混乱", evidence: ["V2","R1","O1","A2"],
           longGoal: "退院までに、夜間6時間以上眠れる",
           shortGoal: "3日以内に、夜間4時間以上まとまって眠れる",
-          op: ["睡眠時間と中途覚醒","日中の眠気と活動量","食事・水分の摂取量"],
+          op: ["入眠時刻・睡眠時間・中途覚醒の回数と時刻(夜間巡視で記録)","熟睡感など、本人の睡眠の感じ方","日中の眠気・活動量・臥床時間","不眠時頓用薬の使用時刻と効果","夜間の幻聴の有無と睡眠への影響","1日の食事摂取量・飲水量・排泄状況"],
           tp: ["開放観察の時間に日中の活動を取り入れ、昼寝を短くする","不眠時は指示の頓用薬を使用し、効果を記録する","就寝前はイヤホンで静かな音楽を聴けるよう調整する"],
           ep: ["睡眠と症状の関係を、本人にわかる言葉で説明する"],
           evalDate: "10/17", individuality: "本人が落ち着ける音楽を、入眠前の習慣づくりにも使った" },
         { title: "非効果的健康管理(服薬中断による再発)", evidence: ["S3","D1","S2","S4","L1","S1"],
           longGoal: "退院後も服薬を続け、パン工房への通所を再開できる",
           shortGoal: "2週間以内に、薬の効果と副作用(眠気)について自分の言葉で看護師に話せる",
-          op: ["服薬状況と、眠気・体重増加などの副作用の訴え","病気と薬についての理解度","母の受け止め方と疲労の様子"],
+          op: ["服薬状況(拒薬・飲み忘れ・口腔内の残薬の有無)","眠気・ふらつき・アカシジア・振戦など副作用の訴えと出現時間","体重(週1回)・空腹時血糖など代謝面の推移","病気と薬についての理解度、服薬への思い","母の面会時の様子、受け止め方と疲労","退院後の生活(パン工房への通所)についての発言"],
           tp: ["眠気の訴えを記録して医師へ報告し、服薬時間や処方の調整を相談する","症状が安定したら、服薬の自己管理練習を段階的に始める"],
           ep: ["本人と母へ心理教育(再発のサイン、服薬の必要性)を行う","B型事業所・訪問看護との連携を精神保健福祉士(PSW)と調整する"],
           evalDate: "10/24", individuality: "「眠くてパン工房に行けない」という中断理由に焦点をあて、副作用への対応と通所再開を目標にした" }
@@ -269,21 +277,21 @@ const PATIENTS = [
         { title: "多飲水による水中毒のリスク", evidence: ["R1","V1","L1","N1","O2","S4"],
           longGoal: "体重の日内変動5%未満で過ごし、水中毒を起こさない",
           shortGoal: "2週間以内に、決めたマグカップで飲んだ回数を自分で記録できる",
-          op: ["朝夕の体重と日内変動率","飲水行動の時間帯(特に夕方)と口渇の訴え","頭痛・嘔気・ふらつきなど低ナトリウムの症状"],
+          op: ["朝夕の体重と日内変動率(5%以上で医師へ報告)","飲水の回数・量・時間帯(特に夕方)","口渇の訴え、給茶機や水道の前にいる時間","頭痛・嘔気・嘔吐・ふらつき・意識レベルの変化(低ナトリウム血症の症状)","血清Na値の推移(検査指示時)","排尿の回数・尿の色、失禁の有無"],
           tp: ["夕方は編み物など手を使う活動を一緒に計画する","容量を決めた本人用マグカップで飲み、回数を一緒に記録する","楽しみのコーヒーは量と時間を決めて続ける","氷片やうがいなど、口渇を和らげる方法を提案する"],
           ep: ["体重が増えると体に何が起きるかを、以前のけいれんの経験と結びつけて本人と振り返る"],
           evalDate: "10/21", individuality: "夕方に飲水が増えることと編み物・コーヒーが好きなことから、夕方の過ごし方と楽しみを残す工夫を計画した" },
         { title: "地域移行に向けた準備(長期入院)", evidence: ["S2","S3","B2","A1","A2","S1"],
           longGoal: "1年以内に、グループホームで生活を始められる",
           shortGoal: "1か月以内にグループホームを見学し、感想を言える",
-          op: ["退院や地域生活についての発言と不安","生活技能(服薬・金銭管理・調理)の現状"],
+          op: ["退院・地域生活についての発言、意欲と不安の内容","生活技能の現状(服薬自己管理・金銭管理・調理・掃除・買い物)","作業療法への参加状況と他者との交流","陰性症状(意欲・自発性)の変化","グループホーム見学の前後の反応","兄との連絡状況と意向"],
           tp: ["PSW・作業療法士と退院支援カンファレンスを月1回開く","金銭管理を1週間分ずつ本人が行う練習を始める","料理が苦手なことに配慮し、作業療法で簡単な調理(温めるだけの食事、コーヒーを淹れる)から練習する"],
           ep: ["グループホームでの暮らしを写真や見学で具体的に説明する","兄へ本人の希望と退院支援の状況を伝える"],
           evalDate: "11/14", individuality: "「一人暮らしをしてみたい」「料理は苦手」という本人の言葉から、段階的な目標と練習内容を設定した" },
         { title: "便秘", evidence: ["R3","O1","D2"],
           longGoal: "2日に1回は自然排便がある",
           shortGoal: "1週間、排便の間隔が3日以内に保てる",
-          op: ["排便の回数・性状、腹部症状","腹部膨満・嘔吐の有無(抗精神病薬による麻痺性イレウスに注意)","下剤の使用状況"],
+          op: ["排便の回数・量・性状(ブリストルスケール)","腹部膨満・腹痛・嘔気・嘔吐の有無、腸蠕動音","排便・排ガスの停止など麻痺性イレウスの徴候(抗精神病薬服用中)","下剤の使用状況と効果","食事摂取量と日中の活動量","飲水量が多飲水の管理量の範囲内か"],
           tp: ["排便が3日ない場合は指示の頓用下剤を使用する","朝食後にトイレへ誘導し、排便習慣をつける"],
           ep: ["腹部マッサージの方法を本人に指導する"],
           evalDate: "10/21", individuality: "多飲水の管理と矛盾しないよう、水分を増やすのではなく排便習慣と活動で整える計画にした" }
@@ -325,21 +333,21 @@ const PATIENTS = [
         { title: "誤嚥のリスク", evidence: ["R3","O2","A2","S4","S3","D1"],
           longGoal: "安全に口から食べることを続け、施設へ戻れる",
           shortGoal: "1週間、むせや発熱がなくゼリー食を食べられる",
-          op: ["食事中のむせ・湿性嗄声","体温・痰の量と性状","食事摂取量"],
+          op: ["食事中のむせ・咳込み・湿性嗄声、食後の痰の増加","体温・SpO2・呼吸数・呼吸音(1日3回)","痰の量・性状","食事摂取量と水分摂取量(とろみ付き)","食事中の覚醒状態と姿勢の保持","口腔内の清潔(食物残渣の有無)","CRP・白血球など検査値の推移"],
           tp: ["覚醒の良い昼食時から食形態を上げられるか、言語聴覚士・医師と相談する","リクライニング30度以上・頸部前屈の姿勢で、右手でのスプーン摂取を見守る","食後30分は座位を保ち、口腔ケアを行う"],
           ep: ["次女へ電話で食事の経過を伝える","施設職員と食形態・食事介助の方法を共有する"],
           evalDate: "10/17", individuality: "施設での覚醒の良い時間帯と、右手で食べられる力を活かした" },
         { title: "せん妄・認知症の行動・心理症状(BPSD)の悪化", evidence: ["R4","A3","A1","S5","S6","N1"],
           longGoal: "退院まで穏やかに過ごし、施設での生活リズムに戻れる",
           shortGoal: "1週間以内に、夜間に大声を出さず4時間以上眠れる",
-          op: ["夜間の睡眠と言動、日中の覚醒状態","不快の原因(痛み・排泄・空腹・発熱)の有無","表情やしぐさで表す訴え"],
+          op: ["夜間の睡眠と言動(大声・帰宅要求の時間帯)","日中の覚醒状態と活動","DST(1日1回)によるせん妄の評価","不快の原因(痛み・排泄・空腹・発熱・口渇)の有無","表情やしぐさで表す訴え","施設での様子との違い(施設職員・次女からの情報)"],
           tp: ["施設の日課(6時起床・昼食後1時間の昼寝・21時就寝)に合わせて生活リズムを整える","「先生」と呼びかけ、短い言葉で一つずつ説明してからケアを行う","不穏時はまず排泄・痛みなど不快の原因を確認する","ナースコールが使えないため、訪室の間隔を短くし、ベッドはナースステーションから見える位置にする"],
           ep: ["次女へせん妄について説明し、電話で声を聞かせてもらう協力を依頼する"],
           evalDate: "10/17", individuality: "施設での日課と元教師という生活歴を、生活リズムとかかわり方に活かした" },
         { title: "身体拘束による弊害のリスク(行動制限の早期解除)", evidence: ["K1","N1","A1","S1","O3"],
           longGoal: "退院までにミトンを外して過ごせる",
           shortGoal: "3日以内に、日中はミトンを外して過ごす時間をつくる",
-          op: ["点滴を触る動作の頻度と時間帯","ミトン使用中の皮膚・表情・苦痛の有無","解除の可否を毎日カンファレンスで評価する(切迫性・非代替性・一時性)"],
+          op: ["点滴を触る動作の頻度と時間帯","ミトン使用中の皮膚(発赤・圧迫痕)と手指の循環","表情・苦痛・興奮の有無","ミトンを外している時間の過ごし方","点滴の投与時間(抗菌薬1日2回)と、点滴がない時間帯","解除の可否を毎日カンファレンスで評価する(切迫性・非代替性・一時性)"],
           tp: ["日中は見守りのもとでミトンを外す","点滴ルートは袖の中を通し、視界に入らないよう工夫する","好きな童謡を流す・一緒に歌うなどで不安を和らげる"],
           ep: ["次女へミトン使用の理由と解除に向けた方針を説明する"],
           evalDate: "10/16", individuality: "施設職員からの情報(歌が好き)を不安の軽減に活用した" }
@@ -463,10 +471,10 @@ function planText() {
 
 function setStatus(msg, err) { const s = $("status"); s.hidden = !msg; s.textContent = msg || ""; s.className = "status" + (err ? " err" : ""); }
 
-function renderAll() { renderPatients(); renderChart(); renderPlan(); setStatus(""); }
+function renderAll() { if (demo) endDemo(); renderPatients(); renderChart(); renderPlan(); setStatus(""); }
 
 $("finBtn").onclick = () => { plan().finalized = true; renderPlan(); setStatus("確定しました(試作版のため、カルテには登録されません)。"); };
-$("resetBtn").onclick = () => { state.plans[cur().key] = freshPlan(clone(cur().sample), "sample"); renderAll(); };
+$("resetBtn").onclick = () => { if (demo) endDemo(); state.plans[cur().key] = freshPlan(clone(cur().sample), "sample"); renderAll(); };
 $("copyBtn").onclick = async () => {
   try { await navigator.clipboard.writeText($("out").textContent); setStatus("コピーしました。"); }
   catch { const r = document.createRange(); r.selectNodeContents($("out")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); setStatus("テキストを選択しました。コピーしてください。"); }
@@ -482,6 +490,7 @@ function buildPrompt(p) {
 - 各問題の evidence には、根拠にしたカルテ情報のID(例 "R1")を必ず入れる。カルテにない情報を根拠にしない。推測で事実を作らない。
 - 目標は患者を主語にし、期限と観察できる状態を入れる。
 - OP(観察)・TP(援助)・EP(指導)はこの患者の生活背景・意向・できるADLを反映した具体的な内容にする。標準的な一般論だけにしない。
+- OPは5〜7項目。観察の頻度、使う評価スケール(NRS・BPRS・DSTなど)、医師へ報告する基準など、記録に残せる具体的なデータで書く。
 - 医師の指示を超える薬剤・治療を提案しない。必要なら「医師に相談」と書く。
 - 精神科の患者では、本人の言葉と強み(好きなこと・できること)を活かし、精神保健福祉法に基づく行動制限(隔離・身体拘束)は最小化と早期解除をめざす。服薬継続・心理教育・退院支援(地域移行、PSWや地域の事業所との連携)を必要に応じて含める。
 - 内科の患者は認知症を合併していることが多い。ナースコールが使えないなど認知機能を前提にし、せん妄予防、本人の生活歴・日課、施設や家族からの情報を活かした声かけと環境調整を含める。
@@ -523,19 +532,125 @@ const ERR = {
 };
 
 let sample = null, ctl = null;
-$("genBtn").hidden = true;
+// AIの本番作成は作成者(オーナー)にだけ表示する。共有された人は作成デモのみ(AIを呼ばない)
 (async () => {
-  try { sample = window.claude ? await window.claude.use("sample") : null; } catch { sample = null; }
-  if (sample) $("genBtn").hidden = false;
-  else $("srcNote").textContent = "この画面ではAI作成を利用できないため、事前作成の例を表示しています。";
+  let owner = false;
+  try {
+    const user = window.claude ? await window.claude.use("user") : null;
+    owner = user ? await user.isOwner() : false;
+  } catch { owner = false; }
+  if (!owner) { $("srcNote").textContent = "「作成デモを再生」で、AIが計画案を作る流れをご覧いただけます(デモはAIを呼び出しません)。"; return; }
+  try { sample = await window.claude.use("sample"); } catch { sample = null; }
+  if (sample) {
+    $("genBtn").hidden = false;
+    $("srcNote").textContent = "「AIで作成(本番)」はあなただけに表示されています。プレゼンでは待ち時間のない「作成デモを再生」がおすすめです。";
+  }
 })();
 
-$("stopBtn").onclick = () => ctl?.abort();
+// ---- 作成デモ:事前作成の計画案を、AIが作っているように順に表示する ----
+let demo = null;
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+function step(n) {
+  $("steps").hidden = n === 0;
+  for (let i = 1; i <= 4; i++) { $("st" + i).dataset.on = String(i === n); $("st" + i).dataset.done = String(i < n); }
+}
+function scrollChartTo(item) {
+  const body = $("chart");
+  body.scrollTo({ top: item.offsetTop - body.clientHeight / 2, behavior: reduceMotion() ? "auto" : "smooth" });
+}
+function setBusy(on, label) {
+  $("demoBtn").disabled = on; $("genBtn").disabled = on; $("resetBtn").disabled = on;
+  if (on) $("finBtn").disabled = true;
+  $("stopBtn").hidden = !on; $("stopBtn").textContent = label || "中止";
+}
+function endDemo() {
+  const run = demo; demo = null; if (!run) return;
+  run.skip = true;
+  document.querySelectorAll("#problems [hidden]").forEach(n => { n.hidden = false; });
+  $("missing").hidden = false; $("final").hidden = false;
+  setBusy(false); step(0); renderCounts();
+}
+async function playDemo() {
+  if (demo) return;
+  const p = cur();
+  state.plans[p.key] = freshPlan(clone(p.sample), "sample");
+  renderChart(); renderPlan(); setStatus("");
+  const run = { skip: false, texts: [] }; demo = run;
+  const alive = () => demo === run;
+  const fast = () => run.skip || reduceMotion();
+  const wait = (ms) => fast() ? Promise.resolve() : sleep(ms);
+  setBusy(true, "スキップ");
+  $("srcTag").textContent = "作成デモ"; $("srcTag").className = "src ai";
+  const cards = [...document.querySelectorAll("#problems .prob")];
+  // 文字を消す前に全文を控えておく(スキップ時に一気に戻すため)
+  for (const card of cards) {
+    const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const n = walker.currentNode;
+      if (!n.parentElement.closest(".decide, .chip, .lbl, .no")) run.texts.push([card, n, n.nodeValue]);
+    }
+  }
+  run.texts.forEach(([, n]) => { n.nodeValue = ""; });
+  cards.forEach(c => { c.hidden = true; });
+  $("missing").hidden = true; $("final").hidden = true;
+  const restore = () => run.texts.forEach(([, n, t]) => { n.nodeValue = t; });
+  run.restore = restore;
+
+  try {
+    step(1);
+    const items = [...document.querySelectorAll("#chart .item")];
+    for (const it of items) { if (!alive()) return; it.classList.add("scan"); if (!fast()) scrollChartTo(it); await wait(70); }
+    await wait(300); items.forEach(it => it.classList.remove("scan"));
+
+    step(2); await wait(1200);
+
+    step(3);
+    for (const card of cards) {
+      if (!alive()) return;
+      const typed = run.texts.filter(t => t[0] === card);
+      const chips = [...card.querySelectorAll(".chip")];
+      chips.forEach(c => { c.hidden = true; });
+      card.querySelectorAll(".pb .row, .pb li, .pb .indiv").forEach(x => { x.hidden = true; });
+      card.hidden = false;
+      if (!fast()) card.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      for (let k = 0; k < typed.length; k++) {
+        if (!alive()) return;
+        const [, n, text] = typed[k];
+        for (let x = n.parentElement; x && x !== card; x = x.parentElement) x.hidden = false;
+        for (let i = 2; i < text.length && !fast(); i += 2) { if (!alive()) return; n.nodeValue = text.slice(0, i); await sleep(14); }
+        n.nodeValue = text;
+        if (k === 0) {
+          for (const c of chips) {
+            if (!alive()) return;
+            c.hidden = false;
+            const it = document.getElementById("c-" + c.querySelector("b").textContent);
+            if (it && !fast()) { scrollChartTo(it); it.classList.add("flash"); setTimeout(() => it.classList.remove("flash"), 1200); }
+            await wait(260);
+          }
+        } else if (!fast()) n.parentElement.scrollIntoView({ block: "nearest" });
+      }
+      await wait(300);
+    }
+    if (!alive()) return;
+    step(4);
+    demo = null;
+    document.querySelectorAll("#problems [hidden]").forEach(n => { n.hidden = false; });
+    $("missing").hidden = false; $("final").hidden = false;
+    setBusy(false); renderCounts();
+    setStatus("作成が完了しました。看護師が根拠を確かめ、問題ごとに「採用・修正・不採用」を判断します(デモ:事前に作成した計画案を再生しています)。");
+  } finally {
+    if (run.skip) restore();
+  }
+}
+$("demoBtn").onclick = playDemo;
+
+$("stopBtn").onclick = () => { if (demo) { const r = demo; endDemo(); r.restore?.(); setStatus("デモをスキップしました。"); } else ctl?.abort(); };
 $("genBtn").onclick = async () => {
   if (!sample) return;
   const p = cur(), key = p.key;
   ctl = new AbortController();
-  $("genBtn").disabled = true; $("stopBtn").hidden = false;
+  setBusy(true, "中止");
   setStatus("AIがカルテ情報を読んで計画案を作成しています(30秒〜1分ほどかかります)…");
   try {
     const data = await sample.json(buildPrompt(p), { signal: ctl.signal, modelTier: "default" });
@@ -547,7 +662,7 @@ $("genBtn").onclick = async () => {
     if (e?.code === "cancelled") setStatus("中止しました。");
     else { setStatus(ERR[e?.code] || "AIの作成に失敗しました。もう一度押してください。", true); if (e?.code === "not_granted") $("genBtn").hidden = true; }
   } finally {
-    $("genBtn").disabled = false; $("stopBtn").hidden = true;
+    setBusy(false); renderCounts();
   }
 };
 
