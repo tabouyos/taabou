@@ -205,6 +205,7 @@ python stickers/animate.py shiba_moetsuki 1:squash 2:tremble 4:tremble 5:wiggle 
 ```bash
 python stickers/from_sheet.py stickers/source/mofuneko_shogatsu_sheet.webp mofuneko_shogatsu --cols 8 --main 1 --border 0 --hard 4,5
 ```
+- 「あけおめスタンプ2027」特集に参加：販売エリアは日本のみ、価格¥250以上、メイン画像は公式フレーム（`source/newyearframe_2027.png`）の内側に、上下左右10px以上あけて194×194以内で配置している
 - 4「謹賀新年」と5「2027ひつじ年」は絵がくっついているので `--hard 4,5` で境目をまっすぐ切り、はみ出した切れ端を消している
 - 文案：もふもふねこ お正月2027 ／ Fluffy Kitty: New Year 2027
   - あけおめ！ことよろ！ひつじの着ぐるみのもふもふねこが新年をお祝い。年末年始からふだんのあいさつまで使える40種類。
