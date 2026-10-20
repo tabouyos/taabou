@@ -203,7 +203,8 @@ python stickers/animate.py shiba_moetsuki 1:squash 2:tremble 4:tremble 5:wiggle 
 
 ## もふもふねこ お正月2027（フチなし）
 ```bash
-python stickers/from_sheet.py stickers/source/mofuneko_shogatsu_sheet.webp mofuneko_shogatsu --cols 8 --main 1 --border 0 --hard 4,5 --clean-text 0.36
+python stickers/fix_shogatsu_eye.py   # 4「謹賀新年」の白目に見える目を、にっこり目に描き直した版を作る
+python stickers/from_sheet.py stickers/source/mofuneko_shogatsu_sheet_fixed.png mofuneko_shogatsu --cols 8 --main 1 --border 0 --hard 4,5 --clean-text 0.36
 python stickers/add_frame.py mofuneko_shogatsu stickers/source/newyearframe_2027.png 1   # 特集フレーム付きメイン画像
 ```
 - 「あけおめスタンプ2027」特集に参加：販売エリアは日本のみ、価格¥250以上、メイン画像は公式フレーム（`source/newyearframe_2027.png`）の内側に、上下左右10px以上あけて194×194以内で配置している
