@@ -210,6 +210,14 @@ python stickers/from_sheet.py stickers/source/mofuneko_shogatsu_sheet.webp mofun
   - あけおめ！ことよろ！ひつじの着ぐるみのもふもふねこが新年をお祝い。年末年始からふだんのあいさつまで使える40種類。
   - Happy New Year 2027! A fluffy kitty in a sheep costume celebrates the Year of the Sheep. 40 stickers for the holidays and every day.
 
+## もふもふねこ お正月2027（動く版・24個）
+```bash
+python stickers/animate.py mofuneko_shogatsu 1:bounce 2:wiggle 3:nod 4:zoom 6:wiggle 7:beat 8:shake 9:squash 11:bounce 12:dash 13:zoom 14:squash 15:squash 16:bounce 17:wiggle 18:nod 19:nod 22:bounce 24:tremble 26:wiggle 29:wiggle 31:shake 37:wiggle 39:beat
+```
+- 文案：もふもふねこ お正月2027【動く】 ／ Fluffy Kitty: New Year 2027 Animated
+  - 動くもふもふねこで新年のごあいさつ！あけおめ・大吉・お年玉…ぴょんぴょん・ゆらゆら動く24種類。
+  - A fluffy kitty that moves for New Year 2027! Hopping, swaying and celebrating in 24 animated stickers.
+
 ## フチなし版（`--border 0`）
 白フチを付けない版。※既存セットのフチなし版は、フチあり版を申請済みのため同じ絵とみなされるので申請しない。持ち込み画像から作ったセットは `_nofuchi` を付けた名前で作っている（フチあり版はそのまま残している）。
 ```bash
