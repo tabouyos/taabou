@@ -62,7 +62,11 @@ def row_cuts(ink, ncols, min_gap=2):
         edges = [0] + cuts + [width]
         k = int(np.argmax(np.diff(edges)))
         lo, hi = edges[k], edges[k + 1]
-        m0, m1 = lo + (hi - lo) * 3 // 10, lo + (hi - lo) * 7 // 10
+        # このコマの塊にいくつのコマが入っているか見積もり、最初の境目の予想位置の近くで線の少ない所を切る
+        avg = width / ncols
+        n_in = max(2, round((hi - lo) / avg))
+        target = lo + (hi - lo) / n_in
+        m0, m1 = int(target - avg * 0.15), int(target + avg * 0.15)
         cuts = sorted(cuts + [m0 + int(np.argmin(ink[m0:m1]))])
     while len(cuts) > ncols - 1:  # 多すぎるときは、いちばん狭いコマをつなぐ
         edges = [0] + cuts + [width]
@@ -71,8 +75,9 @@ def row_cuts(ink, ncols, min_gap=2):
     return [0] + cuts + [width]
 
 
-def split_row(a, nonwhite, y0, y1, ncols):
-    """1行を ncols 個に切る。境目をまたぐ絵・文字は、多く入っている側のコマに入れる"""
+def split_row(a, nonwhite, y0, y1, ncols, hard=()):
+    """1行を ncols 個に切る。境目をまたぐ絵・文字は、多く入っている側のコマに入れる。
+    hard に入っている列（0始まり）は、絵がくっついていて分けられないので、境目でまっすぐ切る"""
     ink = nonwhite[y0:y1]
     edges = row_cuts(ink.sum(axis=0), ncols)
     labels, n = ndimage.label(ink, structure=np.ones((3, 3)))
@@ -90,6 +95,32 @@ def split_row(a, nonwhite, y0, y1, ncols):
     cells = []
     for k in range(ncols):
         x0, x1 = edges[k], edges[k + 1]
+        if k in hard:
+            # まっすぐ切り、境目からはみ出してきた隣のコマの絵（大半が外にあるかたまり）だけ消す
+            crop = a[y0:y1, x0:x1].copy()
+            edge_ids = set(np.unique(labels[:, x0])) | set(np.unique(labels[:, x1 - 1]))
+            # 中に入っている量が少ない（切れ端だけ入っている）かたまりだけ消す。両方にまたがる大きな絵は残す
+            foreign = [i for i in edge_ids - {0}
+                       if (labels[:, x0:x1] == i).sum() * 2 < (labels == i).sum() and (labels[:, x0:x1] == i).sum() < 1500]
+            other = np.isin(labels[:, x0:x1], foreign)
+            other = ndimage.binary_dilation(ndimage.binary_fill_holes(other), structure=np.ones((5, 5)))
+            crop[other] = 255
+            # まっすぐ切ったせいで端に残った細い切れ端を消す。細いつながりを切ってから
+            # 「端に接していて幅30px未満」のかたまりを探し、端から30px以内にあるものだけ消す
+            cink = crop.min(axis=2) < 235
+            opened = ndimage.binary_opening(cink, structure=np.ones((7, 7)))
+            olab, _ = ndimage.label(opened, structure=np.ones((3, 3)))
+            keep = np.zeros_like(cink)
+            for i, sl in enumerate(ndimage.find_objects(olab), 1):
+                w = sl[1].stop - sl[1].start
+                if not ((sl[1].start == 0 or sl[1].stop == crop.shape[1]) and w < 30):
+                    keep |= olab == i
+            keep = ndimage.binary_dilation(keep, iterations=6)
+            near_edge = np.zeros_like(cink)
+            near_edge[:, :30] = near_edge[:, -30:] = True
+            crop[ndimage.binary_dilation(cink & ~keep & near_edge, iterations=2) & near_edge & ~keep] = 255
+            cells.append(ImageOps.expand(Image.fromarray(crop.astype(np.uint8)), border=4, fill=(255, 255, 255)))
+            continue
         lab = labels[:, x0:x1]
         ids = np.unique(lab[lab > 0])
         own = []
@@ -113,7 +144,7 @@ def split_row(a, nonwhite, y0, y1, ncols):
     return cells
 
 
-def split_sheet(sheet, ncols=None):
+def split_sheet(sheet, ncols=None, hard=()):
     """格子を切り分ける。ncols を指定すると、行ごとに縦の隙間を探して ncols 個に分ける
     （コマの幅が行ごとにバラバラな画像向け）"""
     a = np.asarray(sheet.convert("RGB")).astype(int)
@@ -124,8 +155,9 @@ def split_sheet(sheet, ncols=None):
         cells = [sheet.crop((max(0, x0 - 4), max(0, y0 - 4), x1 + 4, y1 + 4)) for y0, y1 in rows for x0, x1 in cols]
         return cells, len(rows), len(cols)
     cells = []
-    for y0, y1 in rows:
-        cells += split_row(a, nonwhite, max(0, y0 - 4), min(a.shape[0], y1 + 4), ncols)
+    for r, (y0, y1) in enumerate(rows):
+        row_hard = {i - 1 - r * ncols for i in hard if 0 <= i - 1 - r * ncols < ncols}
+        cells += split_row(a, nonwhite, max(0, y0 - 4), min(a.shape[0], y1 + 4), ncols, row_hard)
     return cells, len(rows), ncols
 
 
@@ -195,12 +227,14 @@ def main():
     ap.add_argument("--main", type=int, default=1, help="メイン画像にするセル番号")
     ap.add_argument("--tab", type=int, default=None, help="タブ画像にするセル番号（省略時はメインと同じ）")
     ap.add_argument("--cols", type=int, default=None, help="列の数（白い隙間で切れない画像のときに指定）")
+    ap.add_argument("--hard", default="", help="絵がくっついていて分けられないセル番号。境目でまっすぐ切る（--cols と一緒に使う）")
     ap.add_argument("--border", type=int, default=5, help="白フチの太さ（0でフチなし）")
     ap.add_argument("--tab-cut", type=float, default=0.27, help="タブ画像で上から切り落とす割合（文字の部分）")
     args = ap.parse_args()
 
     sheet = Image.open(args.sheet).convert("RGB")
-    cells, nr, nc = split_sheet(sheet, args.cols)
+    hard = {int(x) for x in args.hard.split(",") if x}
+    cells, nr, nc = split_sheet(sheet, args.cols, hard)
     print(f"{nr}行 x {nc}列 = {len(cells)}セル")
     drop = {int(x) for x in args.drop.split(",") if x}
     keep = [i for i in range(1, len(cells) + 1) if i not in drop]

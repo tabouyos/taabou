@@ -201,8 +201,17 @@ python stickers/animate.py shiba_moetsuki 1:squash 2:tremble 4:tremble 5:wiggle 
   - 動く燃え尽き柴犬。ぐったり・ぷるぷる・ゆらゆら…がんばりすぎた気持ちを動きで代弁する24種類。
   - A burnt-out Shiba that moves! Flopping, trembling and swaying to show how tired you are. 24 animated stickers.
 
+## もふもふねこ お正月2027（フチなし）
+```bash
+python stickers/from_sheet.py stickers/source/mofuneko_shogatsu_sheet.webp mofuneko_shogatsu --cols 8 --main 1 --border 0 --hard 4,5
+```
+- 4「謹賀新年」と5「2027ひつじ年」は絵がくっついているので `--hard 4,5` で境目をまっすぐ切り、はみ出した切れ端を消している
+- 文案：もふもふねこ お正月2027 ／ Fluffy Kitty: New Year 2027
+  - あけおめ！ことよろ！ひつじの着ぐるみのもふもふねこが新年をお祝い。年末年始からふだんのあいさつまで使える40種類。
+  - Happy New Year 2027! A fluffy kitty in a sheep costume celebrates the Year of the Sheep. 40 stickers for the holidays and every day.
+
 ## フチなし版（`--border 0`）
-白フチを付けない版。持ち込み画像から作ったセットは `_nofuchi` を付けた名前で作っている（フチあり版はそのまま残している）。
+白フチを付けない版。※既存セットのフチなし版は、フチあり版を申請済みのため同じ絵とみなされるので申請しない。持ち込み画像から作ったセットは `_nofuchi` を付けた名前で作っている（フチあり版はそのまま残している）。
 ```bash
 python stickers/from_sheet.py stickers/source/mofuneko_sheet_fixed.png mofuneko_nofuchi --drop 29,40 --main 2 --border 0
 # 他のセットも同じく、元のコマンドの最後に --border 0 を付けて名前に _nofuchi を付ける
