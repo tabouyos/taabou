@@ -161,7 +161,7 @@ def split_sheet(sheet, ncols=None, hard=()):
     return cells, len(rows), ncols
 
 
-def remove_background(cell, white_min=245, neutral=14, seal=4):
+def remove_background(cell, white_min=245, neutral=14, seal=4, text_band=0.0):
     """白い背景を透明にする。
     毛が真っ白な猫は背景と色で区別できないので、輪郭線のすき間をいったんふさぎ、
     輪郭で囲まれた内側（白い毛を含む）はすべて残す。"""
@@ -173,6 +173,26 @@ def remove_background(cell, white_min=245, neutral=14, seal=4):
     disk = (xx ** 2 + yy ** 2) <= seal ** 2
     closed = ndimage.binary_closing(ink, structure=disk)      # 線のすき間をふさぐ
     fg = ndimage.binary_fill_holes(closed)                    # 囲まれた内側を残す
+
+    if text_band > 0:
+        # セリフの行（上のほう）で、文字のすき間や「あ」の輪の中に残った白を透明にする。
+        # ただし、下まで続く大きな絵（猫・ひつじ・夜空など）は守る
+        band_end = pad + int((a.shape[0] - 2 * pad) * text_band)
+        band = np.zeros_like(fg)
+        band[:band_end] = True
+        small = (xx ** 2 + yy ** 2) <= 4
+        objs = ndimage.binary_fill_holes(ndimage.binary_closing(ink, structure=small[seal - 2:seal + 3, seal - 2:seal + 3]))
+        olab, _ = ndimage.label(objs, structure=np.ones((3, 3)))
+        protect = np.zeros_like(fg)
+        for i, sl in enumerate(ndimage.find_objects(olab), 1):
+            if sl and sl[0].stop > band_end + 4 and (olab[sl] == i).sum() > 2000:
+                protect |= olab == i
+        white = (mn >= 200) & ((mx - mn) <= 30)   # 文字のまわりは、少し色のついた白っぽさも背景とみなす
+        wlab, _ = ndimage.label(white)
+        outside = set(np.unique(np.concatenate([wlab[0], wlab[-1], wlab[:, 0], wlab[:, -1]]))) - {0}
+        sizes = np.bincount(wlab.ravel())
+        drop = np.isin(wlab, list(outside)) | ((wlab > 0) & (sizes[wlab] < 400))
+        fg &= ~(drop & band & ~protect)
 
     # 境目をなめらかに
     dist = ndimage.distance_transform_edt(fg)
@@ -187,9 +207,20 @@ def remove_background(cell, white_min=245, neutral=14, seal=4):
         for i, sl in enumerate(ndimage.find_objects(labels)):
             w = sl[1].stop - sl[1].start
             at_edge = sl[1].start <= pad + 6 or sl[1].stop >= width - pad - 6
-            if sizes[i] < 25 or (at_edge and (w <= 6 or sizes[i] < 60)):
+            is_text_dot = text_band > 0 and mn[labels == i + 1].mean() < 130   # 濁点など、文字の小さな点は残す
+            if (sizes[i] < 25 and not is_text_dot) or (at_edge and (w <= 6 or sizes[i] < 60)):
                 drop.append(i + 1)
         alpha[np.isin(labels, drop)] = 0
+
+    if text_band > 0:
+        # 文字のまわりの白っぽいにじみを、白を差し引いて半透明にする（暗い背景でも白く光らない）
+        edge = band & (alpha > 0) & (ndimage.distance_transform_edt(alpha > 0) <= 3)
+        light = np.clip((255 - mn) / 160.0, 0.0, 1.0)
+        new_a = np.where(edge, np.minimum(alpha, light), alpha)
+        safe = np.maximum(new_a, 1e-3)[..., None]
+        unmixed = np.clip((a - (1 - new_a)[..., None] * 255) / safe, 0, 255)
+        a = np.where(edge[..., None], unmixed, a)
+        alpha = new_a
 
     rgba = np.dstack([a, (alpha * 255).astype(int)]).astype(np.uint8)
     im = Image.fromarray(rgba, "RGBA")
@@ -228,6 +259,7 @@ def main():
     ap.add_argument("--tab", type=int, default=None, help="タブ画像にするセル番号（省略時はメインと同じ）")
     ap.add_argument("--cols", type=int, default=None, help="列の数（白い隙間で切れない画像のときに指定）")
     ap.add_argument("--hard", default="", help="絵がくっついていて分けられないセル番号。境目でまっすぐ切る（--cols と一緒に使う）")
+    ap.add_argument("--clean-text", type=float, default=0.0, help="上からこの割合の範囲（セリフ）で、文字のすき間の白を透明にする（例 0.3）")
     ap.add_argument("--border", type=int, default=5, help="白フチの太さ（0でフチなし）")
     ap.add_argument("--tab-cut", type=float, default=0.27, help="タブ画像で上から切り落とす割合（文字の部分）")
     args = ap.parse_args()
@@ -242,7 +274,7 @@ def main():
 
     out = ROOT / "output" / args.name
     out.mkdir(parents=True, exist_ok=True)
-    cut = {i: remove_background(cells[i - 1]) for i in set(keep) | {args.main, args.tab or args.main}}
+    cut = {i: remove_background(cells[i - 1], text_band=args.clean_text) for i in set(keep) | {args.main, args.tab or args.main}}
 
     tiles = []
     for n, i in enumerate(keep, 1):
