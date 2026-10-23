@@ -7,14 +7,16 @@
 
 | ファイル | 内容 |
 |---|---|
-| `kenshin-v16.html` | 本体（これを開けば動く。正＝カノニカル） |
+| `kenshin-v17.html` | 本体（これを開けば動く。正＝カノニカル）。v17で職員ログインを追加 |
+| `kenshin-v17_RLS_職員ログイン限定.sql` | データを「ログインした職員だけ」に限定するSQL（全PCをv17にしてから実行） |
+| `kenshin-v17_RLS_元に戻す.sql` | 上の制限を元に戻す緊急用SQL |
 | `kenshin-migration-add-columns.sql` | Supabase 追加マイグレーション（列追加＋同期用テーブル） |
 | `健診センターシステム_使用書.html` | スタッフ向け使用書（印刷・PDF配布用） |
 | `README.md` | このファイル |
 
 ## 使い方（ローカル）
 
-`kenshin-v16.html` をブラウザ（Chrome / Edge 推奨）で開くだけ。インストール不要。
+`kenshin-v17.html` をブラウザ（Chrome / Edge 推奨）で開き、職員番号とパスワードでログインする。アカウントは管理者が Supabase の管理画面（Authentication → Users）で発行する（職員番号 12345 → `12345@staff.kenshin.invalid`）。
 
 ## Supabase（バックエンド）
 
@@ -37,7 +39,7 @@
   ```bash
   node --check <抽出したJS>
   ```
-- Codex 等の外部生成物は「検証用途のみ」。正はこのリポジトリの `kenshin-v16.html`。
+- Codex 等の外部生成物は「検証用途のみ」。正はこのリポジトリの `kenshin-v17.html`。
 
 ## 注意
 

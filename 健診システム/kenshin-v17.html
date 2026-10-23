@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>健診センター予約管理 v15 (Supabase)</title>
+<title>健診センター予約管理 v17 (Supabase・職員ログイン版)</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 /* タブレット対応：ダブルタップでの意図しないズームを防ぎ、タップの反応を速く */
@@ -290,11 +290,13 @@ body.in-passage #pass-tabs-toggle{display:block;}
 <body>
 <div class="app">
   <div class="topbar">
-    <div><h1>健診センター予約管理</h1><p>v16.0 — 通過管理ステータス拡張／日誌 受付名簿選択・A4拡大／勤務表クリック順／カレンダーにドクター休み反映</p></div>
+    <div><h1>健診センター予約管理</h1><p>v17.0 — 職員ログインを追加（ログインした職員だけがデータを読み書きできます）</p></div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
       <span id="sync-badge" style="font-size:11px;padding:3px 9px;border-radius:20px;background:#FEF3C7;color:#B45309;">⚠ 未接続</span>
       <span style="font-size:12px;color:#64748b;" id="sel-disp"></span>
       <button class="btn" id="diag-btn" onclick="sbDiagnose()" style="font-size:11px;padding:4px 10px;">🩺 接続診断</button>
+      <span id="auth-user" style="font-size:12px;color:#334155;display:none;"></span>
+      <button class="btn" id="logout-btn" onclick="sbLogout()" style="font-size:11px;padding:4px 10px;display:none;">🔓 ログアウト</button>
       <button class="btn" id="dev-reset-btn" onclick="resetData()" style="font-size:11px;padding:4px 10px;display:none;">🔄 リセット</button>
     </div>
   </div>
@@ -349,7 +351,7 @@ var SUPABASE_KEY  = 'sb_publishable_0vf2cB2L975zQub-s8u1RA_JLuwgN9H';
 var SB = null;   // Supabaseクライアント
 var SB_READY = false;
 // 開発モード: 本番では false。URL末尾に ?dev=1 を付けたときだけ true になり、リセットボタンが表示される。
-console.log('[BUILD] kenshin v15.24 (form-order + csv-import)');
+console.log('[BUILD] kenshin v17.0 (staff login / Supabase Auth)');
 /* 対応者（変更履歴に残す担当者名）。この端末で最後に使った名前を記憶する。 */
 var CURRENT_STAFF = (function(){ try { return localStorage.getItem('kenshin_staff') || ''; } catch(e){ return ''; } })();
 function setCurrentStaff(name) {
@@ -411,6 +413,135 @@ function setSyncBadge(state, msg) {
   el.style.cssText = (MAP[state]||MAP.warn) + ';font-size:11px;padding:3px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:4px;';
   var dot = {ok:'#10B981',warn:'#F59E0B',error:'#EF4444',loading:'#3B82F6'}[state]||'#F59E0B';
   el.innerHTML = '<span style="width:7px;height:7px;border-radius:50%;background:'+dot+';flex-shrink:0;"></span>' + msg;
+}
+
+/* ─────────────────────────────────────────────────────
+   職員ログイン（v17 追加）
+   - データは「ログインした職員だけ」が読み書きできる（Supabase 側の RLS で制限）
+   - アカウントは管理者が Supabase の管理画面で発行する（新規登録画面は作らない）
+   ───────────────────────────────────────────────────── */
+var AUTH_USER = null;
+
+/* 職員番号ログイン：Supabase はメールアドレス形式が必要なため、
+   職員番号「12345」を「12345@staff.kenshin.invalid」に変換して使う。
+   （.invalid は実在しないことが決まっているドメイン。メールは届かない）
+   管理者など、メールアドレスで作ったアカウントは「@」を含めて入力すればそのまま使える。
+   ※ Supabase 側でこのドメインが受け付けられない場合は、ここだけ変更する */
+var STAFF_LOGIN_DOMAIN = 'staff.kenshin.invalid';
+
+/* 入力（職員番号 または メールアドレス）→ ログイン用のメールアドレス。不正な入力は '' */
+function toLoginEmail(input) {
+  var v = String(input || '').trim()
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }) // 全角英数字→半角
+    .replace(/[－ー―‐]/g, '-');
+  if (v.indexOf('@') >= 0 || v.indexOf('＠') >= 0) return v.replace('＠', '@').toLowerCase();
+  v = v.toLowerCase();
+  if (!/^[a-z0-9_-]{1,40}$/.test(v)) return '';
+  return v + '@' + STAFF_LOGIN_DOMAIN;
+}
+
+/* 画面に出す名前：職員番号ログインなら「職員番号 12345」、メールならそのまま */
+function loginLabel(email) {
+  email = email || '';
+  var suf = '@' + STAFF_LOGIN_DOMAIN;
+  if (email.slice(-suf.length) === suf) return '職員番号 ' + email.slice(0, -suf.length);
+  return email || 'ログイン中';
+}
+
+/* ログイン済みならそのまま進む。未ログインならログイン画面を出し、成功するまで待つ */
+function sbRequireLogin() {
+  return SB.auth.getSession().then(function(res) {
+    var s = res && res.data ? res.data.session : null;
+    if (s && s.user) { sbOnLoggedIn(s.user); return s; }
+    return sbShowLogin();
+  });
+}
+
+/* ログイン画面（画面全体を覆う）。ログインが成功したら閉じて resolve する */
+function sbShowLogin(message) {
+  setSyncBadge('warn', 'ログインしてください');
+  return new Promise(function(resolve) {
+    var old = document.getElementById('login-overlay');
+    if (old) old.remove();
+    var ov = document.createElement('div');
+    ov.id = 'login-overlay';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#F1F5F9;display:flex;align-items:center;justify-content:center;padding:16px;font-family:"Yu Gothic UI","Yu Gothic","Meiryo",system-ui,sans-serif;';
+    ov.innerHTML =
+      '<form id="login-form" style="background:#fff;border-radius:14px;box-shadow:0 8px 30px rgba(15,23,42,.12);padding:28px 26px;width:100%;max-width:400px;">'
+      + '<h2 style="margin:0 0 6px;font-size:20px;color:#0F172A;">健診センター予約管理</h2>'
+      + '<p style="margin:0 0 18px;font-size:14px;color:#475569;line-height:1.7;">職員番号とパスワードでログインしてください。</p>'
+      + (message ? '<div style="background:#FEF3C7;color:#92400E;border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:14px;">' + esc(message) + '</div>' : '')
+      + '<label for="login-email" style="display:block;font-size:14px;color:#334155;margin-bottom:4px;">職員番号</label>'
+      + '<input id="login-email" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" required placeholder="例：12345" style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;padding:11px 12px;font-size:16px;margin-bottom:4px;"/>'
+      + '<p style="margin:0 0 12px;font-size:12px;color:#64748B;">管理者用アカウントは、メールアドレスでもログインできます。</p>'
+      + '<label for="login-pass" style="display:block;font-size:14px;color:#334155;margin-bottom:4px;">パスワード</label>'
+      + '<input id="login-pass" type="password" autocomplete="current-password" required style="width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;padding:11px 12px;font-size:16px;margin-bottom:16px;"/>'
+      + '<div id="login-err" role="alert" style="color:#DC2626;font-size:14px;min-height:20px;margin-bottom:8px;"></div>'
+      + '<button id="login-submit" type="submit" style="width:100%;background:#1D4ED8;color:#fff;border:none;border-radius:8px;padding:12px;font-size:16px;font-weight:bold;cursor:pointer;">ログイン</button>'
+      + '<p style="margin:16px 0 0;font-size:12px;color:#64748B;line-height:1.7;">アカウントは管理者が発行します。パスワードは他の人に教えないでください。共用PCでは、使い終わったら右上の「ログアウト」を押してください。</p>'
+      + '</form>';
+    document.body.appendChild(ov);
+    var form = document.getElementById('login-form');
+    var err = document.getElementById('login-err');
+    var btn = document.getElementById('login-submit');
+    setTimeout(function(){ var e = document.getElementById('login-email'); if (e) e.focus(); }, 50);
+    form.addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      var idInput = document.getElementById('login-email').value.trim();
+      var pass = document.getElementById('login-pass').value;
+      if (!idInput || !pass) { err.textContent = '職員番号とパスワードを入力してください。'; return; }
+      var email = toLoginEmail(idInput);
+      if (!email) { err.textContent = '職員番号は半角の英数字で入力してください。'; return; }
+      btn.disabled = true; btn.textContent = 'ログイン中...'; err.textContent = '';
+      SB.auth.signInWithPassword({ email: email, password: pass }).then(function(r) {
+        if (r.error || !r.data || !r.data.session) {
+          btn.disabled = false; btn.textContent = 'ログイン';
+          err.textContent = 'ログインできませんでした。職員番号とパスワードを確かめてください。';
+          console.warn('[AUTH] login failed', r.error && r.error.message);
+          return;
+        }
+        ov.remove();
+        sbOnLoggedIn(r.data.user);
+        resolve(r.data.session);
+      }).catch(function(e) {
+        btn.disabled = false; btn.textContent = 'ログイン';
+        err.textContent = '通信エラーでログインできませんでした。ネット接続を確かめてください。';
+        console.error('[AUTH] login error', e);
+      });
+    });
+  });
+}
+
+/* ログイン後：右上に職員のメールアドレスとログアウトボタンを出し、ログアウト検知を始める */
+function sbOnLoggedIn(user) {
+  AUTH_USER = user || null;
+  var u = document.getElementById('auth-user');
+  var b = document.getElementById('logout-btn');
+  if (u) { u.textContent = '👤 ' + loginLabel(user && user.email); u.style.display = ''; }
+  if (b) b.style.display = '';
+  setSyncBadge('loading', 'ログイン済み・読込中...');
+  if (!sbOnLoggedIn._listening) {
+    sbOnLoggedIn._listening = true;
+    SB.auth.onAuthStateChange(function(event) {
+      // 別タブでのログアウトや、ログインの有効期限切れ → 画面を再読み込みしてログイン画面へ
+      if (event === 'SIGNED_OUT' && AUTH_USER) {
+        AUTH_USER = null;
+        alert('ログインが切れました。もう一度ログインしてください。');
+        location.reload();
+      }
+    });
+  }
+}
+
+/* ログアウト（共用PCでの使い終わりに） */
+function sbLogout() {
+  if (!SB_READY) return;
+  if (!confirm('ログアウトしますか？\n（保存していない入力がある場合は、先に保存してください）')) return;
+  AUTH_USER = null;
+  SB.auth.signOut().catch(function(e){ console.error('[AUTH] signOut error', e); })
+    .then(function(){ location.reload(); });
 }
 
 /* Supabase 初期化 */
@@ -8238,8 +8369,10 @@ window.addEventListener('error', function(e) {
     catch (e) { console.error('[SB] init error', e); connected = false; }
 
     if (connected) {
-      // Supabase接続あり → DBからロード → Realtime開始
-      sbLoadAll().then(function(ok) {
+      // Supabase接続あり → 職員ログイン（v17）→ DBからロード → Realtime開始
+      sbRequireLogin().then(function() {
+        return sbLoadAll();
+      }).then(function(ok) {
         if (ok) {
           try { sbStartRealtime(); } catch(e) { console.error('[SB] realtime error', e); }
           renderCurrentTab();
