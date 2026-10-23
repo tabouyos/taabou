@@ -296,6 +296,7 @@ body.in-passage #pass-tabs-toggle{display:block;}
       <span style="font-size:12px;color:#64748b;" id="sel-disp"></span>
       <button class="btn" id="diag-btn" onclick="sbDiagnose()" style="font-size:11px;padding:4px 10px;">🩺 接続診断</button>
       <span id="auth-user" style="font-size:12px;color:#334155;display:none;"></span>
+      <button class="btn" id="pwchange-btn" onclick="sbShowPasswordChange(false)" style="font-size:11px;padding:4px 10px;display:none;">🔑 パスワード変更</button>
       <button class="btn" id="logout-btn" onclick="sbLogout()" style="font-size:11px;padding:4px 10px;display:none;">🔓 ログアウト</button>
       <button class="btn" id="dev-reset-btn" onclick="resetData()" style="font-size:11px;padding:4px 10px;display:none;">🔄 リセット</button>
     </div>
@@ -452,8 +453,79 @@ function loginLabel(email) {
 function sbRequireLogin() {
   return SB.auth.getSession().then(function(res) {
     var s = res && res.data ? res.data.session : null;
-    if (s && s.user) { sbOnLoggedIn(s.user); return s; }
-    return sbShowLogin();
+    if (s && s.user) { sbOnLoggedIn(s.user); return sbEnsurePasswordChanged(s.user).then(function(){ return s; }); }
+    return sbShowLogin().then(function(sess) {
+      return sbEnsurePasswordChanged(sess && sess.user).then(function(){ return sess; });
+    });
+  });
+}
+
+/* 初回ログイン（管理者が作った仮パスワードのまま）なら、自分のパスワードへの変更を求める。
+   変更済みかどうかは user_metadata.pw_changed で判定（再設定SQLで仮パスワードに戻すと消える） */
+function sbEnsurePasswordChanged(user) {
+  var md = (user && user.user_metadata) || {};
+  if (md.pw_changed) return Promise.resolve();
+  return sbShowPasswordChange(true);
+}
+
+/* パスワード変更画面。required=true（初回）は閉じられない。変更できたら resolve */
+function sbShowPasswordChange(required) {
+  return new Promise(function(resolve) {
+    var old = document.getElementById('pw-overlay');
+    if (old) old.remove();
+    var ov = document.createElement('div');
+    ov.id = 'pw-overlay';
+    ov.setAttribute('role', 'dialog');
+    ov.setAttribute('aria-modal', 'true');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:' + (required ? '#F1F5F9' : 'rgba(15,23,42,.45)') + ';display:flex;align-items:center;justify-content:center;padding:16px;';
+    var inp = 'width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;font-size:16px;margin-bottom:12px;';
+    ov.innerHTML =
+      '<form id="pw-form" style="background:#fff;border-radius:14px;box-shadow:0 8px 30px rgba(15,23,42,.12);padding:28px 26px;width:100%;max-width:400px;">'
+      + '<h2 style="margin:0 0 6px;font-size:20px;color:#0F172A;">' + (required ? '自分のパスワードを決めてください' : 'パスワード変更') + '</h2>'
+      + '<p style="margin:0 0 16px;font-size:14px;color:#475569;line-height:1.7;">'
+      + (required ? '初めてのログインです。仮のパスワードから、ご自身だけが知っているパスワードに変更してください。' : '新しいパスワードを2回入力してください。')
+      + '</p>'
+      + '<label for="pw-new1" style="display:block;font-size:14px;color:#334155;margin-bottom:4px;">新しいパスワード（8文字以上）</label>'
+      + '<input id="pw-new1" type="password" autocomplete="new-password" required style="' + inp + '">'
+      + '<label for="pw-new2" style="display:block;font-size:14px;color:#334155;margin-bottom:4px;">もう一度入力</label>'
+      + '<input id="pw-new2" type="password" autocomplete="new-password" required style="' + inp + '">'
+      + '<div id="pw-err" role="alert" style="color:#DC2626;font-size:14px;min-height:20px;margin-bottom:8px;"></div>'
+      + '<button id="pw-submit" type="submit" style="width:100%;background:#1D4ED8;color:#fff;border:none;border-radius:8px;padding:12px;font-size:16px;font-weight:bold;cursor:pointer;">変更する</button>'
+      + (required ? '' : '<button id="pw-cancel" type="button" style="width:100%;margin-top:8px;background:#fff;color:#334155;border:1px solid #cbd5e1;border-radius:8px;padding:10px;font-size:14px;cursor:pointer;">やめる</button>')
+      + '<p style="margin:16px 0 0;font-size:12px;color:#64748B;line-height:1.7;">パスワードは他の人に教えないでください。忘れたときは管理者（相葉）に連絡してください。</p>'
+      + '</form>';
+    document.body.appendChild(ov);
+    setTimeout(function(){ var e = document.getElementById('pw-new1'); if (e) e.focus(); }, 50);
+    var cancel = document.getElementById('pw-cancel');
+    if (cancel) cancel.onclick = function(){ ov.remove(); resolve(false); };
+    var err = document.getElementById('pw-err');
+    var btn = document.getElementById('pw-submit');
+    document.getElementById('pw-form').addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      var p1 = document.getElementById('pw-new1').value, p2 = document.getElementById('pw-new2').value;
+      if (p1.length < 8) { err.textContent = 'パスワードは8文字以上にしてください。'; return; }
+      if (p1 !== p2) { err.textContent = '2回の入力が一致しません。'; return; }
+      btn.disabled = true; btn.textContent = '変更中...'; err.textContent = '';
+      SB.auth.updateUser({ password: p1, data: { pw_changed: true } }).then(function(r) {
+        if (r.error) {
+          btn.disabled = false; btn.textContent = '変更する';
+          var m = String(r.error.message || '');
+          err.textContent = /different/i.test(m) ? '今と同じパスワードは使えません。別のパスワードにしてください。'
+                          : /weak|short|characters/i.test(m) ? 'パスワードが簡単すぎます。もう少し長く・複雑にしてください。'
+                          : 'パスワードを変更できませんでした。もう一度お試しください。';
+          console.warn('[AUTH] password change failed', m);
+          return;
+        }
+        ov.remove();
+        if (r.data && r.data.user) AUTH_USER = r.data.user;
+        alert('パスワードを変更しました。次回からは新しいパスワードでログインしてください。');
+        resolve(true);
+      }).catch(function(e) {
+        btn.disabled = false; btn.textContent = '変更する';
+        err.textContent = '通信エラーで変更できませんでした。ネット接続を確かめてください。';
+        console.error('[AUTH] password change error', e);
+      });
+    });
   });
 }
 
@@ -521,6 +593,8 @@ function sbOnLoggedIn(user) {
   var b = document.getElementById('logout-btn');
   if (u) { u.textContent = '👤 ' + loginLabel(user && user.email); u.style.display = ''; }
   if (b) b.style.display = '';
+  var pc = document.getElementById('pwchange-btn');
+  if (pc) pc.style.display = '';
   setSyncBadge('loading', 'ログイン済み・読込中...');
   if (!sbOnLoggedIn._listening) {
     sbOnLoggedIn._listening = true;
