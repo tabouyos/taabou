@@ -359,8 +359,15 @@ function setCurrentStaff(name) {
   CURRENT_STAFF = (name||'').trim();
   try { localStorage.setItem('kenshin_staff', CURRENT_STAFF); } catch(e){}
 }
-/* 対応者の選択欄HTML（名簿から選ぶ＋自由入力も可）*/
+/* ログイン中の職員名（v17：アカウント作成時の氏名。ある時は対応者を選ばずに自動で記録する）*/
+var LOGIN_STAFF_NAME = '';
+/* 対応者の選択欄HTML（名簿から選ぶ＋自由入力も可）。ログイン中は職員名を表示するだけ */
 function staffSelectHTML(id, current) {
+  if (LOGIN_STAFF_NAME) {
+    return '<input type="hidden" id="'+id+'" value="'+esc(LOGIN_STAFF_NAME)+'"/>'
+      + '<div style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;font-size:15px;background:#F8FAFC;color:#1e293b;">👤 '+esc(LOGIN_STAFF_NAME)
+      + ' <span style="font-size:11px;color:#94a3b8;">（ログイン中の職員）</span></div>';
+  }
   var cur = current || CURRENT_STAFF || '';
   var opts = '<option value="">-- 選択してください --</option>';
   OFFICE_MEMBERS.forEach(function(m){
@@ -590,9 +597,12 @@ function sbShowLogin(message) {
 /* ログイン後：右上に職員のメールアドレスとログアウトボタンを出し、ログアウト検知を始める */
 function sbOnLoggedIn(user) {
   AUTH_USER = user || null;
+  var md = (user && user.user_metadata) || {};
+  LOGIN_STAFF_NAME = String(md.name || '').replace(/\u3000/g, ' ').trim();
+  if (LOGIN_STAFF_NAME) CURRENT_STAFF = LOGIN_STAFF_NAME;   // 変更履歴にはログイン中の職員名を記録
   var u = document.getElementById('auth-user');
   var b = document.getElementById('logout-btn');
-  if (u) { u.textContent = '👤 ' + loginLabel(user && user.email); u.style.display = ''; }
+  if (u) { u.textContent = '👤 ' + loginLabel(user && user.email) + (LOGIN_STAFF_NAME ? ' ' + LOGIN_STAFF_NAME : ''); u.style.display = ''; }
   if (b) b.style.display = '';
   var pc = document.getElementById('pwchange-btn');
   if (pc) pc.style.display = '';
