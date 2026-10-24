@@ -1788,6 +1788,7 @@ async function runCsvImport() {
       };
     });
     closeModal('csv-modal');
+    if (currentTab === 'psearch') renderPSearch();   // 「受診者マスタ: ○名」の表示を更新
     setSyncBadge('ok', '✓ 受診者マスタに' + okCount + '件を取り込みました');
     alert(okCount + '件を受診者マスタに登録しました。\n予約入力でカルテ番号を入れると氏名などが自動で入ります。');
   } catch(e) {
