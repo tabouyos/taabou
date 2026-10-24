@@ -898,27 +898,16 @@ async function sbLoadAll() {
     if (smRes.error) sbLoadErr('shift_staff_memos（許容・続行）', 'select *', smRes.error);
     if (ssRes.error) sbLoadErr('shift_settings（許容・続行）', 'select *', ssRes.error);
 
-    // patients（受診者マスタ）— テーブル未作成でも全体を止めない
-    var ptRes = await sbSelectAll('patients', 'karte_number');
+    // patients（受診者マスタ）— 医事課の全患者（十数万件）が入るため、起動時は件数だけ確認する。
+    //   個々の受診者は、カルテ番号・カナを入れたときにその都度問い合わせる（patientsMaster はその控え）
+    var ptRes = await SB.from('patients').select('karte_number', {count:'exact', head:true});
     if (ptRes.error) {
       PATIENTS_SYNC_READY = false;
-      sbLoadErr('patients（許容・続行）', 'select *', ptRes.error);
+      sbLoadErr('patients（許容・続行）', 'select count', ptRes.error);
     } else {
       PATIENTS_SYNC_READY = true;
-      patientsMaster = {};
-      (ptRes.data||[]).forEach(function(row) {
-        patientsMaster[row.karte_number] = {
-          karteNumber: row.karte_number, name: row.name||'', kana: row.kana||'',
-          kanaNorm: row.kana_norm || normKana(row.kana||''),
-          birth: row.birth||'', gender: row.gender||'', phone: row.phone||'',
-          companyCode: row.company_code||'', companyName: row.company_name||'',
-          postalCode: row.postal_code||'', address: row.address||'',
-          insurerNo: row.insurer_no||'', insuredSym: row.insured_sym||'', insuredNo: row.insured_no||'',
-          mail: row.mail||'', courseCode: row.course_code||'', examDate: row.exam_date||'',
-          qrId: row.qr_id||'', identCode: row.ident_code||'', note: row.note||''
-        };
-      });
-      console.log('[SB] 受診者マスタ ' + Object.keys(patientsMaster).length + '件');
+      PATIENTS_COUNT = (typeof ptRes.count === 'number') ? ptRes.count : null;
+      console.log('[SB] 受診者マスタ ' + PATIENTS_COUNT + '件（都度問い合わせ）');
     }
 
     // massage_offs（マッサージ休み）— テーブル未作成でも全体を止めない
@@ -1584,6 +1573,17 @@ function onCsvFile(input) {
     var rows = parseCSV(dec.text);
     if (rows.length < 2) { document.getElementById('csv-preview').innerHTML = '<div class="err-box">データ行が見つかりません。</div>'; return; }
     CSV_IMPORT = {fileName:f.name, encoding:dec.encoding, headers:rows[0], rows:rows.slice(1), mapping:guessMapping(rows[0])};
+    // 新規／更新の判定のため、既存の受診者マスタを一度だけ全件読む（件数が多いと少し時間がかかる）
+    if (SB_READY && PATIENTS_SYNC_READY && !PATIENTS_FULL_LOADED) {
+      document.getElementById('csv-preview').innerHTML = '<div class="locker-box">既存の受診者マスタを確認しています（' + (PATIENTS_COUNT != null ? PATIENTS_COUNT.toLocaleString() + '件' : '') + '）… しばらくお待ちください。</div>';
+      sbSelectAll('patients', 'karte_number').then(function(res) {
+        if (res.error) { document.getElementById('csv-preview').innerHTML = '<div class="err-box">受診者マスタの確認に失敗しました: ' + esc(res.error.message || '') + '</div>'; return; }
+        (res.data || []).forEach(function(row){ patientsMaster[row.karte_number] = rowToPatient(row); });
+        PATIENTS_FULL_LOADED = true;
+        renderCsvPreview();
+      });
+      return;
+    }
     renderCsvPreview();
   };
   reader.readAsArrayBuffer(f);
@@ -1762,16 +1762,20 @@ async function runCsvImport() {
     });
   });
   if (rows.length === 0) { alert('登録する行がありません。'); return; }
+  CSV_IMPORT._existing = {};
+  rows.forEach(function(rw){ if (patientsMaster[rw.karte_number]) CSV_IMPORT._existing[rw.karte_number] = 1; });
   var btn = document.getElementById('csv-run');
   if (btn) { btn.disabled = true; btn.textContent = '取込中...'; }
   try {
     var okCount = 0;
-    for (var i = 0; i < rows.length; i += 100) {
-      var chunk = rows.slice(i, i + 100);
+    for (var i = 0; i < rows.length; i += 500) {
+      var chunk = rows.slice(i, i + 500);
       var res = await SB.from('patients').upsert(chunk, {onConflict:'karte_number'});
       if (res.error) throw res.error;
       okCount += chunk.length;
+      if (btn) btn.textContent = '取込中... ' + okCount.toLocaleString() + ' / ' + rows.length.toLocaleString() + '件';
     }
+    PATIENTS_COUNT = (PATIENTS_COUNT || 0) + rows.filter(function(rw){ return !(CSV_IMPORT._existing || {})[rw.karte_number]; }).length;
     rows.forEach(function(rw) {
       patientsMaster[rw.karte_number] = {
         karteNumber: rw.karte_number, name: rw.name, kana: rw.kana, kanaNorm: rw.kana_norm,
@@ -1796,8 +1800,50 @@ async function runCsvImport() {
 /* ═══ 受診者マスタ連携 ═══
    カルテ番号を入れると氏名・カナ・生年月日・性別を自動で読み込む。
    既に入力済みの欄は上書きしない（職員が直した内容を消さないため）。 */
-var patientsMaster = {};      // karte_number -> {name, kana, birth, gender, phone, ...}
+var patientsMaster = {};      // karte_number -> {name, kana, birth, gender, phone, ...}（問い合わせた分の控え）
 var PATIENTS_SYNC_READY = false;
+var PATIENTS_COUNT = null;     // Supabase 上の受診者マスタ件数（起動時に確認）
+var PATIENTS_FULL_LOADED = false; // CSV取込のため全件を読み込んだか
+function rowToPatient(row) {
+  return {
+    karteNumber: row.karte_number, name: row.name||'', kana: row.kana||'',
+    kanaNorm: row.kana_norm || normKana(row.kana||''),
+    birth: row.birth||'', gender: row.gender||'', phone: row.phone||'',
+    companyCode: row.company_code||'', companyName: row.company_name||'',
+    postalCode: row.postal_code||'', address: row.address||'',
+    insurerNo: row.insurer_no||'', insuredSym: row.insured_sym||'', insuredNo: row.insured_no||'',
+    mail: row.mail||'', courseCode: row.course_code||'', examDate: row.exam_date||'',
+    qrId: row.qr_id||'', identCode: row.ident_code||'', note: row.note||''
+  };
+}
+/* カルテ番号の表記ゆれ（先頭0の有無・8桁0埋め）を含めた照合候補 */
+function karteCandidates(kn) {
+  kn = String(kn || '').trim();
+  var out = [kn], s = kn.replace(/^0+/, ''), pd = kn.length < 8 ? ('00000000' + kn).slice(-8) : kn;
+  if (s && out.indexOf(s) < 0) out.push(s);
+  if (out.indexOf(pd) < 0) out.push(pd);
+  return out;
+}
+function findPatientCached(kn) {
+  var c = karteCandidates(kn);
+  for (var i = 0; i < c.length; i++) { if (patientsMaster[c[i]]) return patientsMaster[c[i]]; }
+  return null;
+}
+/* Supabase にカルテ番号で問い合わせ（見つかれば控えに入れて返す） */
+async function sbFetchPatient(kn) {
+  if (!SB_READY || !PATIENTS_SYNC_READY) return null;
+  var res = await SB.from('patients').select('*').in('karte_number', karteCandidates(kn)).limit(5);
+  if (res.error) { console.error('[SB] patients 問い合わせ', res.error); return null; }
+  (res.data || []).forEach(function(row){ patientsMaster[row.karte_number] = rowToPatient(row); });
+  return findPatientCached(kn);
+}
+/* Supabase にカナで問い合わせ（同じカナの方の候補） */
+async function sbFetchPatientsByKana(nk) {
+  if (!SB_READY || !PATIENTS_SYNC_READY) return;
+  var res = await SB.from('patients').select('*').eq('kana_norm', nk).limit(20);
+  if (res.error) { console.error('[SB] patients カナ問い合わせ', res.error); return; }
+  (res.data || []).forEach(function(row){ patientsMaster[row.karte_number] = rowToPatient(row); });
+}
 
 function pmSetBox(msg, type) {
   var box = document.getElementById('fm-lookup');
@@ -1813,16 +1859,17 @@ function pmSetBox(msg, type) {
   box.innerHTML = msg;
 }
 /* カルテ番号入力時：マスタから受診者情報を読み込む */
-function onKarteNoChange() {
+async function onKarteNoChange() {
   var el = document.getElementById('fm-karteno');
   if (!el) return;
   var kn = (el.value || '').trim();
   if (!kn) { pmSetBox('', ''); renderPrevMemo(); return; }
-  var p = patientsMaster[kn] || patientsMaster[kn.replace(/^0+/, '')] || null;
-  if (!p) {
-    // 8桁ゼロ埋めでも照合する
-    var padded = kn.length < 8 ? ('00000000' + kn).slice(-8) : kn;
-    p = patientsMaster[padded] || null;
+  var p = findPatientCached(kn);   // 先頭0の有無・8桁0埋めも照合
+  if (!p && SB_READY && PATIENTS_SYNC_READY) {
+    pmSetBox('受診者マスタを検索中...', 'warn');
+    p = await sbFetchPatient(kn);
+    var el2 = document.getElementById('fm-karteno');
+    if (!el2 || (el2.value || '').trim() !== kn) return;   // 検索中に入力が変わった
   }
   if (!p) {
     pmSetBox('該当する受診者が見つかりません（新規の方はそのまま入力してください）', 'warn');
@@ -1847,13 +1894,15 @@ function onKarteNoChange() {
   renderPrevMemo();
 }
 /* カナ入力時：表記ゆれを吸収して同一人物の候補を探す */
-function onKanaChange() {
+async function onKanaChange() {
   var kEl = document.getElementById('fm-kana');
   var knEl = document.getElementById('fm-karteno');
   renderPrevMemo();
   if (!kEl || (knEl && knEl.value.trim())) return;   // カルテ番号が既にあれば何もしない
   var nk = normKana(kEl.value);
   if (!nk || nk.length < 2) return;
+  await sbFetchPatientsByKana(nk);
+  if (normKana((document.getElementById('fm-kana') || {}).value || '') !== nk) return;   // 検索中に入力が変わった
   var hits = Object.keys(patientsMaster).filter(function(k) {
     return patientsMaster[k].kanaNorm === nk;
   }).map(function(k){ return patientsMaster[k]; });
@@ -2470,22 +2519,7 @@ function sbStartRealtime() {
       saveLocal();
       if (currentTab === 'shift') renderShift();
     });
-    // patients（受診者マスタ）の変更を受信
-    rtSub('patients', function(payload) {
-      var row = payload.new || payload.old || {};
-      if (!row.karte_number) return;
-      if (payload.eventType === 'DELETE') delete patientsMaster[row.karte_number];
-      else if (payload.new) patientsMaster[payload.new.karte_number] = {
-        karteNumber: payload.new.karte_number, name: payload.new.name||'', kana: payload.new.kana||'',
-        kanaNorm: payload.new.kana_norm || normKana(payload.new.kana||''),
-        birth: payload.new.birth||'', gender: payload.new.gender||'', phone: payload.new.phone||'',
-        companyCode: payload.new.company_code||'', companyName: payload.new.company_name||'',
-        postalCode: payload.new.postal_code||'', address: payload.new.address||'',
-        insurerNo: payload.new.insurer_no||'', insuredSym: payload.new.insured_sym||'', insuredNo: payload.new.insured_no||'',
-        mail: payload.new.mail||'', courseCode: payload.new.course_code||'', examDate: payload.new.exam_date||'',
-        qrId: payload.new.qr_id||'', identCode: payload.new.ident_code||'', note: payload.new.note||''
-      };
-    })
+    // patients（受診者マスタ）はリアルタイム購読しない（十数万件の一括取込で全PCに通知が殺到するため。都度問い合わせで最新を取得）
     // massage_offs（マッサージ休み）の変更を受信
     rtSub('massage_offs', function(payload) {
       var row = payload.new || payload.old || {};
@@ -5127,7 +5161,7 @@ function renderPSearch() {
     + '<button class="btn btn-primary" onclick="runPSearch()" style="margin-bottom:0;">検索</button>'
     + '<button class="btn" onclick="openCsvModal()" style="margin-bottom:0;">📥 受診者CSV取込</button>'
     + '</div></div>'
-    + '<div style="font-size:12px;color:#64748b;margin-bottom:8px;">受診者マスタ: <strong>'+Object.keys(patientsMaster).length+'名</strong> 登録済み'
+    + '<div style="font-size:12px;color:#64748b;margin-bottom:8px;">受診者マスタ: <strong>'+(PATIENTS_COUNT != null ? PATIENTS_COUNT : Object.keys(patientsMaster).length).toLocaleString()+'名</strong> 登録済み'
     + (PATIENTS_SYNC_READY?'（全PC共有）':'（未接続）')+'</div>'
     + '<div class="fr"><label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" id="ps-cxl" '+(psIncludeCancelled?'checked':'')+' onchange="psIncludeCancelled=this.checked"/> キャンセル・変更履歴も含める</label></div>'
     + '</div></div>'
